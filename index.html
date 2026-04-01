@@ -1523,10 +1523,25 @@
   }
 
   function deleteRecord(id) {
+    const rec = records.find(r => r.id === id);
     records = records.filter(r => r.id !== id);
     saveRecords();
     editingId = null;
     renderRecords();
+    if (rec && APPS_SCRIPT_URL) {
+      fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'delete',
+          id: rec.id,
+          date: getRecordDate(rec),
+          startTime: rec.startTime,
+          name: rec.name
+        })
+      }).catch(err => console.error('Sheet delete error:', err));
+    }
   }
 
   function isValidTime(str) {
