@@ -1073,9 +1073,7 @@
             date: toDate(r.date)
           };
         });
-        records.sort((a, b) => b.id - a.id);
-        saveRecords();
-        renderRecords();
+        applySortAndRender();
         updateResumeButton();
         if (status) { status.textContent = `${data.records.length}개 기록 불러옴`; status.style.color = '#4CAF50'; }
       } else {
@@ -1367,9 +1365,9 @@
     localStorage.setItem('timeRecords', JSON.stringify(records));
   }
 
-  // --- 정렬 ---
-  let sortKey = 'date';
-  let sortAsc = false;
+  // --- 정렬 (localStorage에 저장하여 유지) ---
+  let sortKey = localStorage.getItem('sortKey') || 'date';
+  let sortAsc = localStorage.getItem('sortAsc') === 'true' ? true : false;
 
   function getRecordDate(r) {
     if (r.date) return r.date;
@@ -1377,17 +1375,17 @@
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
-  function sortRecords(key) {
-    if (sortKey === key) {
-      sortAsc = !sortAsc;
-    } else {
-      sortKey = key;
-      sortAsc = (key === 'name' || key === 'tag');
-    }
+  function saveSortState() {
+    localStorage.setItem('sortKey', sortKey);
+    localStorage.setItem('sortAsc', sortAsc);
+  }
+
+  function updateSortUI() {
     ['date','time','duration','tag','name'].forEach(k => {
       const arrow = document.getElementById('sortArrow-' + k);
+      if (!arrow) return;
       const col = arrow.parentElement;
-      if (k === key) {
+      if (k === sortKey || (sortKey === 'date' && k === 'time')) {
         arrow.textContent = sortAsc ? '▲' : '▼';
         col.classList.add('active');
       } else {
@@ -1395,6 +1393,18 @@
         col.classList.remove('active');
       }
     });
+  }
+
+  function sortRecords(key) {
+    if (key === 'time') key = 'date';
+    if (sortKey === key) {
+      sortAsc = !sortAsc;
+    } else {
+      sortKey = key;
+      sortAsc = (key === 'name' || key === 'tag');
+    }
+    saveSortState();
+    updateSortUI();
     applySortAndRender();
   }
 
@@ -1406,10 +1416,6 @@
         case 'date':
           va = getRecordDate(a) + ' ' + (a.startTime || '');
           vb = getRecordDate(b) + ' ' + (b.startTime || '');
-          break;
-        case 'time':
-          va = a.startTime || '';
-          vb = b.startTime || '';
           break;
         case 'duration':
           return (a.duration - b.duration) * dir;
@@ -1427,6 +1433,9 @@
     saveRecords();
     renderRecords();
   }
+
+  // 초기 정렬 UI 반영
+  updateSortUI();
 
   function renderRecords() {
     const list = document.getElementById('recordList');
