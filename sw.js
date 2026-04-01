@@ -1,14 +1,6 @@
-const CACHE_NAME = 'timetracker-v1';
-const ASSETS = [
-  './',
-  './index.html',
-  './manifest.json',
-  './icon-192.png',
-  './icon-512.png'
-];
+const CACHE_NAME = 'timetracker-v2';
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)));
   self.skipWaiting();
 });
 
@@ -24,7 +16,13 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   // Google Apps Script 요청은 캐시하지 않음
   if (e.request.url.includes('script.google.com')) return;
+
+  // 네트워크 우선, 실패 시 캐시 (오프라인 지원)
   e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request))
+    fetch(e.request).then(res => {
+      const clone = res.clone();
+      caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+      return res;
+    }).catch(() => caches.match(e.request))
   );
 });
