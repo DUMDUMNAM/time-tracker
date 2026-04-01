@@ -94,6 +94,26 @@
     justify-content: center;
     padding: 12px 0 8px;
   }
+  .stats-range-bar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+  .stats-range-btn {
+    flex: 1;
+    padding: 6px 0;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1.5px solid rgba(0,0,0,0.1);
+    border-radius: 6px;
+    background: transparent;
+    color: #999;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .stats-range-btn:hover { border-color: #1A237E; color: #1A237E; }
+  .stats-range-btn.active { background: #1A237E; color: #fff; border-color: #1A237E; }
+
   .stats-summary {
     text-align: center;
     margin-bottom: 16px;
@@ -810,6 +830,11 @@
     <!-- 통계 탭 -->
     <div class="tab-content" id="tab-stats">
       <div class="stats-view" id="statsView">
+        <div class="stats-range-bar">
+          <button class="stats-range-btn active" onclick="setStatsRange('today')">오늘</button>
+          <button class="stats-range-btn" onclick="setStatsRange('week')">이번 주</button>
+          <button class="stats-range-btn" onclick="setStatsRange('month')">이번 달</button>
+        </div>
         <div class="stats-empty" id="statsEmpty">오늘 기록이 없습니다</div>
         <div id="statsContent" style="display:none;">
           <div class="stats-chart-wrap">
@@ -895,26 +920,55 @@
   };
   const FALLBACK_COLORS = ['#3949AB','#00897B','#C62828','#6A1B9A','#2E7D32','#EF6C00','#1565C0','#D84315'];
 
-  function getTodayRecords() {
+  let statsRange = 'today';
+
+  function setStatsRange(range) {
+    statsRange = range;
+    document.querySelectorAll('.stats-range-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.textContent === (range === 'today' ? '오늘' : range === 'week' ? '이번 주' : '이번 달'));
+    });
+    renderStats();
+  }
+
+  function getFilteredRecords() {
     const today = new Date();
     const todayStr = today.getFullYear() + '-' +
       String(today.getMonth() + 1).padStart(2, '0') + '-' +
       String(today.getDate()).padStart(2, '0');
-    return records.filter(r => {
-      const d = new Date(r.id);
-      const rStr = d.getFullYear() + '-' +
-        String(d.getMonth() + 1).padStart(2, '0') + '-' +
-        String(d.getDate()).padStart(2, '0');
-      return rStr === todayStr;
-    });
+
+    if (statsRange === 'today') {
+      return records.filter(r => getRecordDate(r) === todayStr);
+    }
+    if (statsRange === 'week') {
+      const day = today.getDay();
+      const mondayOffset = day === 0 ? -6 : 1 - day;
+      const monday = new Date(today);
+      monday.setDate(today.getDate() + mondayOffset);
+      const mondayStr = monday.getFullYear() + '-' +
+        String(monday.getMonth() + 1).padStart(2, '0') + '-' +
+        String(monday.getDate()).padStart(2, '0');
+      return records.filter(r => {
+        const d = getRecordDate(r);
+        return d >= mondayStr && d <= todayStr;
+      });
+    }
+    if (statsRange === 'month') {
+      const monthPrefix = todayStr.slice(0, 7);
+      return records.filter(r => getRecordDate(r).startsWith(monthPrefix));
+    }
+    return [];
   }
 
   function renderStats() {
-    const todayRecs = getTodayRecords();
+    const filteredRecs = getFilteredRecords();
     const empty = document.getElementById('statsEmpty');
     const content = document.getElementById('statsContent');
 
-    if (todayRecs.length === 0) {
+    const rangeLabels = { today: '오늘', week: '이번 주', month: '이번 달' };
+    const emptyMessages = { today: '오늘 기록이 없습니다', week: '이번 주 기록이 없습니다', month: '이번 달 기록이 없습니다' };
+
+    if (filteredRecs.length === 0) {
+      empty.textContent = emptyMessages[statsRange] || '기록이 없습니다';
       empty.style.display = '';
       content.style.display = 'none';
       return;
@@ -922,9 +976,11 @@
     empty.style.display = 'none';
     content.style.display = '';
 
+    document.querySelector('.stats-total-label').textContent = (rangeLabels[statsRange] || '오늘') + ' 총 작업 시간';
+
     const tagMap = {};
     let totalMin = 0;
-    todayRecs.forEach(r => {
+    filteredRecs.forEach(r => {
       const tag = r.tag || '미분류';
       tagMap[tag] = (tagMap[tag] || 0) + r.duration;
       totalMin += r.duration;
@@ -1174,10 +1230,7 @@
     isSendingToSheet = true;
     showSyncStatus('시트에 기록 중...');
     try {
-      const today = new Date();
-      const dateStr = today.getFullYear() + '-' +
-        String(today.getMonth() + 1).padStart(2, '0') + '-' +
-        String(today.getDate()).padStart(2, '0');
+      const dateStr = getRecordDate(record);
 
       await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
@@ -1285,6 +1338,13 @@
     document.getElementById('btnStop').disabled = false;
     document.getElementById('nameInput').disabled = true;
 
+    // 타이머 상태 저장 (앱 재시작 시 복원용)
+    localStorage.setItem('timerState', JSON.stringify({
+      startTimestamp: startTimestamp.toISOString(),
+      taskName: name,
+      tag: selectedTag
+    }));
+
     timerInterval = setInterval(() => {
       elapsed = Math.floor((Date.now() - startTimestamp.getTime()) / 1000);
       renderStopwatch();
@@ -1293,6 +1353,7 @@
 
   function stopTimer() {
     clearInterval(timerInterval);
+    localStorage.removeItem('timerState');
     timerInterval = null;
 
     const endTimestamp = new Date();
@@ -1510,12 +1571,34 @@
 
     const idx = records.findIndex(r => r.id === id);
     if (idx !== -1) {
+      const oldId = records[idx].id;
+      const oldDate = getRecordDate(records[idx]);
+      const oldStartTime = records[idx].startTime;
+      const oldName = records[idx].name;
+
       records[idx].name = name;
       records[idx].tag = tag;
       records[idx].startTime = startTime;
       records[idx].endTime = endTime;
       records[idx].duration = duration;
       saveRecords();
+
+      if (APPS_SCRIPT_URL) {
+        fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'delete',
+            id: oldId,
+            date: oldDate,
+            startTime: oldStartTime,
+            name: oldName
+          })
+        }).then(() => {
+          sendToSheet(records[idx]);
+        }).catch(err => console.error('Sheet edit sync error:', err));
+      }
     }
 
     editingId = null;
@@ -1523,6 +1606,7 @@
   }
 
   function deleteRecord(id) {
+    if (!confirm('이 기록을 삭제하시겠습니까?')) return;
     const rec = records.find(r => r.id === id);
     records = records.filter(r => r.id !== id);
     saveRecords();
@@ -1656,6 +1740,44 @@
   renderTodos();
   renderRecords();
   updateResumeButton();
+
+  // --- 타이머 복원 (앱 재시작 시) ---
+  (function restoreTimer() {
+    const saved = localStorage.getItem('timerState');
+    if (!saved) return;
+    try {
+      const state = JSON.parse(saved);
+      if (!state.startTimestamp) return;
+      startTimestamp = new Date(state.startTimestamp);
+      elapsed = Math.floor((Date.now() - startTimestamp.getTime()) / 1000);
+      if (elapsed < 0) { localStorage.removeItem('timerState'); return; }
+
+      document.getElementById('nameInput').value = state.taskName || '';
+      document.getElementById('nameInput').disabled = true;
+
+      if (state.tag) {
+        selectedTag = state.tag;
+        document.getElementById('tagLabel').textContent = state.tag;
+        document.getElementById('tagSelect').classList.add('has-tag');
+        document.querySelectorAll('.tag-option').forEach(el => {
+          el.classList.toggle('selected', el.textContent === state.tag);
+        });
+      }
+
+      document.getElementById('btnStart').disabled = true;
+      document.getElementById('btnBreak').disabled = true;
+      document.getElementById('btnResume').disabled = true;
+      document.getElementById('btnStop').disabled = false;
+
+      renderStopwatch();
+      timerInterval = setInterval(() => {
+        elapsed = Math.floor((Date.now() - startTimestamp.getTime()) / 1000);
+        renderStopwatch();
+      }, 200);
+    } catch (e) {
+      localStorage.removeItem('timerState');
+    }
+  })();
 
   // 시트에서 자동 불러오기 + 1분 간격 자동 동기화
   if (APPS_SCRIPT_URL) {
