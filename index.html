@@ -1154,8 +1154,26 @@
     if (type) setTimeout(() => { el.textContent = ''; el.className = 'sync-status'; }, 3000);
   }
 
+  // --- 자동 동기화 (1분 간격) ---
+  let isSendingToSheet = false;
+  let pendingSyncAfterSend = false;
+  let autoSyncTimer = null;
+
+  function startAutoSync() {
+    if (autoSyncTimer) clearInterval(autoSyncTimer);
+    autoSyncTimer = setInterval(() => {
+      if (!APPS_SCRIPT_URL) return;
+      if (isSendingToSheet) {
+        pendingSyncAfterSend = true;
+      } else {
+        loadFromSheet().catch(() => {});
+      }
+    }, 60000);
+  }
+
   async function sendToSheet(record) {
     if (!APPS_SCRIPT_URL) return;
+    isSendingToSheet = true;
     showSyncStatus('시트에 기록 중...');
     try {
       const today = new Date();
@@ -1182,6 +1200,12 @@
     } catch (err) {
       console.error('Sheet sync error:', err);
       showSyncStatus('시트 동기화 실패', 'error');
+    } finally {
+      isSendingToSheet = false;
+      if (pendingSyncAfterSend) {
+        pendingSyncAfterSend = false;
+        setTimeout(() => loadFromSheet().catch(() => {}), 2000);
+      }
     }
   }
 
@@ -1609,9 +1633,10 @@
   renderRecords();
   updateResumeButton();
 
-  // 시트에서 자동 불러오기
+  // 시트에서 자동 불러오기 + 1분 간격 자동 동기화
   if (APPS_SCRIPT_URL) {
     loadFromSheet().catch(() => {});
+    startAutoSync();
   }
 </script>
 
