@@ -1168,6 +1168,7 @@
   function selectTag(tag, e) {
     if (e) e.stopPropagation();
     selectedTag = (selectedTag === tag) ? '' : tag;
+    manualTagSelected = !!selectedTag;
     document.getElementById('tagLabel').textContent = selectedTag || '분류';
     document.getElementById('tagSelect').classList.toggle('has-tag', !!selectedTag);
     document.querySelectorAll('.tag-option').forEach(el => {
@@ -1185,6 +1186,43 @@
   });
 
   initTagDropdown();
+
+  // --- 자동 분류 ---
+  const AUTO_TAG_RULES = [
+    { keywords: ['회의', '미팅', '스탠드업', '싱크', '콜'], tag: '회의' },
+    { keywords: ['개발', '코딩', '프로그래밍', '버그', '디버깅', 'QA', 'qa', '테스트'], tag: '개발' },
+    { keywords: ['디자인', '피그마', 'figma', 'UI', 'ui', 'UX', 'ux'], tag: '디자인' },
+    { keywords: ['기획', '스펙', '요구사항', 'PRD', 'prd'], tag: '기획' },
+    { keywords: ['공부', '학습', '강의', '수업', '세미나'], tag: '공부' },
+    { keywords: ['독서', '책'], tag: '독서' },
+    { keywords: ['운동', '헬스', '러닝', '요가', '산책'], tag: '운동' },
+    { keywords: ['식사', '점심', '저녁', '아침', '밥', '식당', '카페'], tag: '식사' },
+    { keywords: ['휴식', '쉬기', '낮잠'], tag: '휴식' },
+    { keywords: ['이동', '출퇴근', '이동중'], tag: '이동' },
+    { keywords: ['전화', '통화'], tag: '전화' },
+    { keywords: ['정리', '청소', '정돈'], tag: '정리' },
+    { keywords: ['콘텐츠', '글쓰기', '블로그', '영상', '편집'], tag: '업무' },
+    { keywords: ['피드백', '리뷰', '검토'], tag: '업무' },
+  ];
+
+  let manualTagSelected = false;
+
+  document.getElementById('nameInput').addEventListener('input', (e) => {
+    if (manualTagSelected) return;
+    const name = e.target.value.trim().toLowerCase();
+    if (!name) return;
+    for (const rule of AUTO_TAG_RULES) {
+      if (rule.keywords.some(kw => name.includes(kw.toLowerCase()))) {
+        selectedTag = rule.tag;
+        document.getElementById('tagLabel').textContent = rule.tag;
+        document.getElementById('tagSelect').classList.add('has-tag');
+        document.querySelectorAll('.tag-option').forEach(el => {
+          el.classList.toggle('selected', el.textContent === rule.tag);
+        });
+        return;
+      }
+    }
+  });
 
   // --- 상태 ---
   let timerInterval = null;
@@ -1389,6 +1427,7 @@
     document.getElementById('nameInput').focus();
 
     selectedTag = '';
+    manualTagSelected = false;
     document.getElementById('tagLabel').textContent = '분류';
     document.getElementById('tagSelect').classList.remove('has-tag');
     document.querySelectorAll('.tag-option').forEach(el => el.classList.remove('selected'));
@@ -1538,7 +1577,7 @@
       }
       const tagHtml = r.tag ? `<span class="record-tag">${escapeHtml(r.tag)}</span>` : '';
       return `
-        <div class="record-item" onclick="startFromRecord(${r.id})" ondblclick="startEdit(${r.id})">
+        <div class="record-item" onclick="startEdit(${r.id})">
           <span class="record-date">${shortDate}</span>
           <span class="record-time">${r.startTime}~${r.endTime}</span>
           <span class="record-duration">${formatDuration(r.duration)}</span>
