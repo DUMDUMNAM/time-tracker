@@ -2088,8 +2088,11 @@
     appStateSyncTimer = setTimeout(() => syncAppStateToSheet(), 1500);
   }
 
+  let hasCompletedFirstLoad = false;
+
   async function syncAppStateToSheet() {
     if (!APPS_SCRIPT_URL) return;
+    if (!hasCompletedFirstLoad) return;
     try {
       const localTimer = JSON.parse(localStorage.getItem('timerState') || 'null');
       const state = {
@@ -2124,16 +2127,43 @@
       const data = await res.json();
       if (data && data.state) {
         const parsed = JSON.parse(data.state);
+        const remoteTodos = Array.isArray(parsed.todos) ? parsed.todos : [];
+
+        // 🛡 안전장치 1: 원격이 비어있는데 로컬에 데이터 있으면 거부
+        if (todos.length > 0 && remoteTodos.length === 0) {
+          console.warn('[AppState] 원격이 비어있어 로컬 보호');
+          hasCompletedFirstLoad = true;
+          localStorage.setItem('appStateSavedAt', String(Date.now()));
+          syncAppStateToSheet();
+          return;
+        }
+
+        // 🛡 안전장치 2: 줄어드는 변경은 백업
+        if (remoteTodos.length < todos.length && todos.length > 0) {
+          localStorage.setItem('widgetTodos_backup', JSON.stringify(todos));
+          localStorage.setItem('widgetBackup_at', String(Date.now()));
+        }
+
         const localSavedAt = parseInt(localStorage.getItem('appStateSavedAt') || '0', 10);
         const remoteSavedAt = parsed.savedAt || 0;
-        if (remoteSavedAt > localSavedAt && Array.isArray(parsed.todos)) {
-          todos = parsed.todos;
+        const shouldOverwrite = (localSavedAt === 0) || (remoteSavedAt > localSavedAt);
+
+        if (shouldOverwrite) {
+          todos = remoteTodos;
           saveTodos();
-          localStorage.setItem('appStateSavedAt', String(remoteSavedAt));
+          localStorage.setItem('appStateSavedAt', String(Math.max(remoteSavedAt, Date.now())));
           renderTodos();
         }
         applyRemoteTimerState(parsed.timer || null);
+      } else {
+        if (todos.length > 0) {
+          hasCompletedFirstLoad = true;
+          localStorage.setItem('appStateSavedAt', String(Date.now()));
+          syncAppStateToSheet();
+          return;
+        }
       }
+      hasCompletedFirstLoad = true;
     } catch (err) {
       console.error('AppState load error:', err);
     } finally {
@@ -2203,6 +2233,13 @@
     localStorage.setItem('appStateSavedAt', String(Date.now()));
     scheduleAppStateSave();
   };
+
+  // 🛡 자동 복구: 로컬이 비었는데 savedAt 존재 → 시트에서 복구하도록 리셋
+  if ((!todos || todos.length === 0) &&
+      localStorage.getItem('appStateSavedAt') && localStorage.getItem('appStateSavedAt') !== '0') {
+    console.warn('[AppState] 로컬이 비었는데 savedAt 존재 — 시트에서 복구하기 위해 리셋');
+    localStorage.setItem('appStateSavedAt', '0');
+  }
 
   if (APPS_SCRIPT_URL) {
     setTimeout(loadAppStateFromSheet, 800);
