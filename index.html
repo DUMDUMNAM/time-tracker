@@ -530,8 +530,29 @@
     background: rgba(245,245,245,0.6);
     border-radius: 8px;
     font-size: 14px;
-    transition: background 0.15s;
+    transition: background 0.15s, transform 0.12s, opacity 0.12s;
+    touch-action: pan-y;
   }
+  .todo-item.dragging {
+    opacity: 0.4;
+    transform: scale(0.98);
+  }
+  .todo-item.drag-over {
+    background: rgba(91,134,229,0.25);
+    box-shadow: inset 0 2px 0 0 #5B86E5;
+  }
+  .todo-drag {
+    cursor: grab;
+    color: #bbb;
+    font-size: 16px;
+    line-height: 1;
+    letter-spacing: -3px;
+    user-select: none;
+    flex-shrink: 0;
+    padding: 4px 2px;
+    touch-action: none;
+  }
+  .todo-drag:active { cursor: grabbing; color: #5B86E5; }
 
   .todo-checkbox {
     width: 20px;
@@ -559,15 +580,45 @@
     font-weight: 700;
   }
 
+  .todo-start {
+    font-size: 10px;
+    padding: 1px 5px;
+    border: 1.5px solid #5B86E5;
+    border-radius: 4px;
+    background: transparent;
+    color: #5B86E5;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .todo-start:hover {
+    background: #5B86E5;
+    color: #fff;
+  }
+
   .todo-text {
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    cursor: default;
+    border-radius: 4px;
+    padding: 2px 4px;
   }
   .todo-text.done {
     text-decoration: line-through;
     color: #AAA;
+  }
+
+  .todo-edit-input {
+    flex: 1;
+    font-size: 13px;
+    padding: 2px 4px;
+    border: 1.5px solid #5B86E5;
+    border-radius: 4px;
+    outline: none;
+    background: #fff;
   }
 
   .todo-delete {
@@ -592,6 +643,90 @@
     flex-direction: column;
     gap: 5px;
   }
+
+  .records-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 4px 8px 6px;
+    flex-shrink: 0;
+  }
+  .manual-add-btn {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1.5px solid #5B86E5;
+    background: transparent;
+    color: #5B86E5;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .manual-add-btn:hover { background: #5B86E5; color: #fff; }
+  .manual-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .manual-modal-content {
+    background: #fff;
+    padding: 18px 20px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 320px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  }
+  .manual-modal-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 14px;
+    color: #1A237E;
+  }
+  .manual-field {
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+  .manual-field label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 4px;
+  }
+  .manual-field input,
+  .manual-field select {
+    padding: 7px 10px;
+    font-size: 13px;
+    border: 1.5px solid rgba(0,0,0,0.12);
+    border-radius: 6px;
+    outline: none;
+    background: #fff;
+    font-family: inherit;
+  }
+  .manual-field input:focus,
+  .manual-field select:focus { border-color: #5B86E5; }
+  .manual-field-row { display: flex; gap: 8px; margin-bottom: 0; }
+  .manual-modal-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    justify-content: flex-end;
+  }
+  .manual-btn {
+    padding: 7px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .manual-btn-cancel { background: rgba(0,0,0,0.08); color: #555; }
+  .manual-btn-save { background: #5B86E5; color: #fff; }
+  .manual-btn-save:hover { background: #4A75D4; }
 
   .record-sort-bar {
     display: flex;
@@ -797,13 +932,6 @@
         <span class="todos-count" id="todosCount"></span>
       </div>
       <div class="todos-collapsible" id="todosCollapsible">
-        <div class="memo-section">
-          <div class="memo-header">
-            <span class="memo-title">MEMO</span>
-            <span class="memo-sync-dot" id="memoSyncDot" title="동기화 상태"></span>
-          </div>
-          <textarea class="memo-textarea" id="memoTextarea" placeholder="메모를 입력하세요..."></textarea>
-        </div>
         <div class="todo-add-row">
           <input type="text" class="todo-add-input" id="todoInput" placeholder="할 일 추가..." onkeydown="if(event.key==='Enter')addTodo()">
           <button class="todo-add-btn" onclick="addTodo()">+</button>
@@ -811,10 +939,24 @@
         <div class="todo-list" id="todoList"></div>
       </div>
     </div>
+
+    <div class="todos">
+      <div class="todos-header" onclick="toggleMemo()">
+        <span class="todos-toggle" id="memoToggle">▼</span>
+        <span class="todos-title">MEMO</span>
+        <span class="memo-sync-dot" id="memoSyncDot" title="동기화 상태"></span>
+      </div>
+      <div class="todos-collapsible" id="memoCollapsible">
+        <textarea class="memo-textarea" id="memoTextarea" placeholder="메모를 입력하세요..."></textarea>
+      </div>
+    </div>
     </div><!-- /tab-main -->
 
     <!-- 기록 탭 -->
     <div class="tab-content" id="tab-records">
+      <div class="records-toolbar">
+        <button class="manual-add-btn" onclick="openManualAdd()">+ 수동 추가</button>
+      </div>
       <div class="record-sort-bar">
         <span class="sort-col sort-date active" onclick="sortRecords('date')">일자 <span class="sort-arrow" id="sortArrow-date">▼</span></span>
         <span class="sort-col sort-time" onclick="sortRecords('time')">작업시간 <span class="sort-arrow" id="sortArrow-time"></span></span>
@@ -824,6 +966,41 @@
       </div>
       <div class="records-body" id="recordsBody" style="flex:1;overflow-y:auto;">
         <div class="record-list" id="recordList"></div>
+      </div>
+    </div>
+
+    <!-- 수동 추가 모달 -->
+    <div class="manual-modal" id="manualModal" style="display:none;">
+      <div class="manual-modal-content">
+        <div class="manual-modal-title">기록 수동 추가</div>
+        <div class="manual-field">
+          <label>날짜</label>
+          <input type="date" id="manualDate">
+        </div>
+        <div class="manual-field-row">
+          <div class="manual-field">
+            <label>시작</label>
+            <input type="time" id="manualStart">
+          </div>
+          <div class="manual-field">
+            <label>종료</label>
+            <input type="time" id="manualEnd">
+          </div>
+        </div>
+        <div class="manual-field">
+          <label>작업명</label>
+          <input type="text" id="manualName" placeholder="무엇을 했나요?">
+        </div>
+        <div class="manual-field">
+          <label>분류</label>
+          <select id="manualTag">
+            <option value="">(없음)</option>
+          </select>
+        </div>
+        <div class="manual-modal-buttons">
+          <button class="manual-btn manual-btn-cancel" onclick="closeManualAdd()">취소</button>
+          <button class="manual-btn manual-btn-save" onclick="saveManualAdd()">추가</button>
+        </div>
       </div>
     </div>
 
@@ -1082,8 +1259,10 @@
       alert('Apps Script 웹앱 URL을 먼저 설정해주세요.');
       return;
     }
+    if (isSyncing) return;
+    isSyncing = true;
     const status = document.getElementById('settingsSyncStatus');
-    if (status) { status.textContent = '불러오는 중...'; status.style.color = '#FFA726'; }
+    if (status) { status.textContent = '동기화 중...'; status.style.color = '#FFA726'; }
     try {
       const res = await fetch(APPS_SCRIPT_URL + '?action=getAll');
       const data = await res.json();
@@ -1116,7 +1295,7 @@
           if (val.includes('미만')) return 0;
           return 0;
         }
-        records = data.records.map(r => {
+        const sheetRecords = data.records.map(r => {
           const startTime = toHHMM(r.startTime);
           const endTime = toHHMM(r.endTime);
           return {
@@ -1129,15 +1308,31 @@
             date: toDate(r.date)
           };
         });
+        reconcilePendingOps(sheetRecords);
+        if (pendingOps.length > 0) await retrySendPendingOps();
+        records = mergeWithPending(sheetRecords);
         applySortAndRender();
         updateResumeButton();
-        if (status) { status.textContent = `${data.records.length}개 기록 불러옴`; status.style.color = '#4CAF50'; }
+        const pc = pendingOps.length;
+        if (status) {
+          status.textContent = pc > 0
+            ? `${sheetRecords.length}개 기록 (${pc}개 동기화 대기)`
+            : `${sheetRecords.length}개 기록 동기화 완료`;
+          status.style.color = pc > 0 ? '#FFA726' : '#4CAF50';
+        }
       } else {
+        if (pendingOps.length > 0) {
+          await retrySendPendingOps();
+          records = mergeWithPending([]);
+          applySortAndRender();
+        }
         if (status) { status.textContent = '기록 없음'; status.style.color = '#999'; }
       }
     } catch (err) {
-      console.error('Load from sheet error:', err);
-      if (status) { status.textContent = '불러오기 실패: ' + (err.message || err); status.style.color = '#F44336'; }
+      console.error('Sync error:', err);
+      if (status) { status.textContent = '동기화 실패: ' + (err.message || err); status.style.color = '#F44336'; }
+    } finally {
+      isSyncing = false;
     }
     if (status) setTimeout(() => { status.textContent = ''; }, 4000);
   }
@@ -1246,55 +1441,191 @@
     if (type) setTimeout(() => { el.textContent = ''; el.className = 'sync-status'; }, 3000);
   }
 
-  // --- 자동 동기화 (1분 간격) ---
-  let isSendingToSheet = false;
-  let pendingSyncAfterSend = false;
+  // --- 안정적 동기화 시스템 (큐 + 병합) ---
+  let pendingOps = JSON.parse(localStorage.getItem('pendingOps') || '[]');
+  let isSyncing = false;
   let autoSyncTimer = null;
+
+  function savePendingOps() {
+    localStorage.setItem('pendingOps', JSON.stringify(pendingOps));
+  }
+
+  function addPendingOp(op) {
+    pendingOps = pendingOps.filter(o => !(String(o.id) === String(op.id) && o.type === op.type));
+    pendingOps.push({ ...op, timestamp: Date.now() });
+    savePendingOps();
+  }
+
+  function reconcilePendingOps(sheetRecords) {
+    const sheetIdSet = new Set(sheetRecords.map(r => String(r.id)));
+    const prevCount = pendingOps.length;
+    pendingOps = pendingOps.filter(op => {
+      if (op.type === 'add') {
+        return !sheetIdSet.has(String(op.id));
+      } else if (op.type === 'delete') {
+        return sheetIdSet.has(String(op.id));
+      } else if (op.type === 'edit') {
+        const sheetRec = sheetRecords.find(r => String(r.id) === String(op.id));
+        if (!sheetRec) return true;
+        return !(sheetRec.name === op.record.name &&
+                 sheetRec.startTime === op.record.startTime &&
+                 sheetRec.endTime === op.record.endTime);
+      }
+      return false;
+    });
+    if (pendingOps.length !== prevCount) savePendingOps();
+  }
+
+  function mergeWithPending(sheetRecords) {
+    let merged = [...sheetRecords];
+    for (const op of pendingOps) {
+      if (op.type === 'add') {
+        if (!merged.find(r => String(r.id) === String(op.id))) {
+          merged.unshift(op.record);
+        }
+      } else if (op.type === 'delete') {
+        merged = merged.filter(r => String(r.id) !== String(op.id));
+      } else if (op.type === 'edit') {
+        const idx = merged.findIndex(r => String(r.id) === String(op.id));
+        if (idx !== -1) merged[idx] = op.record;
+      }
+    }
+    return merged;
+  }
+
+  async function retrySendPendingOps() {
+    for (const op of [...pendingOps]) {
+      try {
+        if (op.type === 'add') {
+          await fetch(APPS_SCRIPT_URL, {
+            method: 'POST', mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+              action: 'add', id: op.record.id, date: op.record.date,
+              startTime: op.record.startTime, endTime: op.record.endTime,
+              name: op.record.name, tag: op.record.tag || '',
+              duration: formatDuration(op.record.duration)
+            })
+          });
+        } else if (op.type === 'delete') {
+          await fetch(APPS_SCRIPT_URL, {
+            method: 'POST', mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+              action: 'delete', id: op.id,
+              date: op.date, startTime: op.startTime, name: op.name
+            })
+          });
+        } else if (op.type === 'edit') {
+          await fetch(APPS_SCRIPT_URL, {
+            method: 'POST', mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+              action: 'delete', id: op.id,
+              date: op.oldData.date, startTime: op.oldData.startTime, name: op.oldData.name
+            })
+          });
+          await fetch(APPS_SCRIPT_URL, {
+            method: 'POST', mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+              action: 'add', id: op.record.id, date: op.record.date,
+              startTime: op.record.startTime, endTime: op.record.endTime,
+              name: op.record.name, tag: op.record.tag || '',
+              duration: formatDuration(op.record.duration)
+            })
+          });
+        }
+      } catch (err) {
+        console.error('Pending op retry failed:', err);
+      }
+    }
+  }
 
   function startAutoSync() {
     if (autoSyncTimer) clearInterval(autoSyncTimer);
     autoSyncTimer = setInterval(() => {
-      if (!APPS_SCRIPT_URL) return;
-      if (isSendingToSheet) {
-        pendingSyncAfterSend = true;
-      } else {
-        loadFromSheet().catch(() => {});
-      }
+      if (!APPS_SCRIPT_URL || isSyncing) return;
+      loadFromSheet().catch(() => {});
     }, 60000);
   }
 
+  // --- 수동 기록 추가 ---
+  function openManualAdd() {
+    const modal = document.getElementById('manualModal');
+    const now = new Date();
+    const dateStr = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0');
+    document.getElementById('manualDate').value = dateStr;
+    document.getElementById('manualStart').value = '';
+    document.getElementById('manualEnd').value = '';
+    document.getElementById('manualName').value = '';
+    const sel = document.getElementById('manualTag');
+    sel.innerHTML = '<option value="">(없음)</option>' +
+      DEFAULT_TAGS.map(t => `<option value="${t}">${t}</option>`).join('');
+    sel.value = '';
+    modal.style.display = 'flex';
+    setTimeout(() => document.getElementById('manualName').focus(), 50);
+  }
+
+  function closeManualAdd() {
+    document.getElementById('manualModal').style.display = 'none';
+  }
+
+  function saveManualAdd() {
+    const date = document.getElementById('manualDate').value;
+    const start = document.getElementById('manualStart').value;
+    const end = document.getElementById('manualEnd').value;
+    const name = document.getElementById('manualName').value.trim();
+    const tag = document.getElementById('manualTag').value;
+    if (!date || !start || !end) { alert('날짜, 시작, 종료 시간을 모두 입력해주세요.'); return; }
+    if (!name) { alert('작업명을 입력해주세요.'); document.getElementById('manualName').focus(); return; }
+    const startMin = parseInt(start.split(':')[0]) * 60 + parseInt(start.split(':')[1]);
+    const endMin = parseInt(end.split(':')[0]) * 60 + parseInt(end.split(':')[1]);
+    if (endMin <= startMin) { alert('종료 시간은 시작 시간보다 늦어야 합니다.'); return; }
+    const duration = endMin - startMin;
+    const record = {
+      id: Date.now(), name, tag,
+      startTime: start, endTime: end, duration, date
+    };
+    records.unshift(record);
+    saveRecords();
+    applySortAndRender();
+    sendToSheet(record);
+    closeManualAdd();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const modal = document.getElementById('manualModal');
+      if (modal && modal.style.display === 'flex') closeManualAdd();
+    }
+  });
+
   async function sendToSheet(record) {
     if (!APPS_SCRIPT_URL) return;
-    isSendingToSheet = true;
+    const dateStr = record.date || getRecordDate(record);
+    addPendingOp({
+      type: 'add', id: record.id,
+      record: { ...record, date: dateStr }
+    });
     showSyncStatus('시트에 기록 중...');
     try {
-      const dateStr = getRecordDate(record);
-
       await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
+        method: 'POST', mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
-          action: 'add',
-          id: record.id,
-          date: dateStr,
-          startTime: record.startTime,
-          endTime: record.endTime,
-          name: record.name,
-          tag: record.tag || '',
+          action: 'add', id: record.id, date: dateStr,
+          startTime: record.startTime, endTime: record.endTime,
+          name: record.name, tag: record.tag || '',
           duration: formatDuration(record.duration)
         })
       });
-      showSyncStatus('시트 기록 완료', 'success');
+      showSyncStatus('시트 기록 완료 (확인 대기)', 'success');
     } catch (err) {
       console.error('Sheet sync error:', err);
-      showSyncStatus('시트 동기화 실패', 'error');
-    } finally {
-      isSendingToSheet = false;
-      if (pendingSyncAfterSend) {
-        pendingSyncAfterSend = false;
-        setTimeout(() => loadFromSheet().catch(() => {}), 2000);
-      }
+      showSyncStatus('전송 실패 — 자동 재시도 예정', 'error');
     }
   }
 
@@ -1387,6 +1718,15 @@
       elapsed = Math.floor((Date.now() - startTimestamp.getTime()) / 1000);
       renderStopwatch();
     }, 200);
+    if (typeof syncAppStateToSheet === 'function') syncAppStateToSheet();
+  }
+
+  function startFromTodo(todoId) {
+    const todo = todos.find(t => t.id === todoId);
+    if (!todo) return;
+    if (timerInterval) return;
+    document.getElementById('nameInput').value = todo.text;
+    startTimer();
   }
 
   function stopTimer() {
@@ -1395,26 +1735,30 @@
     timerInterval = null;
 
     const endTimestamp = new Date();
-    const name = document.getElementById('nameInput').value.trim();
+    const elapsedSec = Math.floor((endTimestamp - startTimestamp) / 1000);
 
-    const now = new Date();
-    const dateStr = now.getFullYear() + '-' +
-      String(now.getMonth() + 1).padStart(2, '0') + '-' +
-      String(now.getDate()).padStart(2, '0');
-    const record = {
-      id: Date.now(),
-      name: name,
-      tag: selectedTag,
-      startTime: formatHHMM(startTimestamp),
-      endTime: formatHHMM(endTimestamp),
-      duration: Math.floor((endTimestamp - startTimestamp) / 60000),
-      date: dateStr
-    };
+    // 5초 이하는 기록하지 않음
+    if (elapsedSec > 5) {
+      const name = document.getElementById('nameInput').value.trim();
+      const now = new Date();
+      const dateStr = now.getFullYear() + '-' +
+        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+        String(now.getDate()).padStart(2, '0');
+      const record = {
+        id: Date.now(),
+        name: name,
+        tag: selectedTag,
+        startTime: formatHHMM(startTimestamp),
+        endTime: formatHHMM(endTimestamp),
+        duration: Math.floor((endTimestamp - startTimestamp) / 60000),
+        date: dateStr
+      };
 
-    records.unshift(record);
-    saveRecords();
-    renderRecords();
-    sendToSheet(record);
+      records.unshift(record);
+      saveRecords();
+      renderRecords();
+      sendToSheet(record);
+    }
 
     elapsed = 0;
     startTimestamp = null;
@@ -1433,6 +1777,7 @@
     document.querySelectorAll('.tag-option').forEach(el => el.classList.remove('selected'));
 
     updateResumeButton();
+    if (typeof syncAppStateToSheet === 'function') syncAppStateToSheet();
   }
 
   function renderStopwatch() {
@@ -1623,19 +1968,31 @@
       saveRecords();
 
       if (APPS_SCRIPT_URL) {
+        pendingOps = pendingOps.filter(o => !(String(o.id) === String(records[idx].id) && o.type === 'add'));
+        addPendingOp({
+          type: 'edit', id: records[idx].id,
+          record: { ...records[idx], date: getRecordDate(records[idx]) },
+          oldData: { id: oldId, date: oldDate, startTime: oldStartTime, name: oldName }
+        });
         fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          mode: 'no-cors',
+          method: 'POST', mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain' },
           body: JSON.stringify({
-            action: 'delete',
-            id: oldId,
-            date: oldDate,
-            startTime: oldStartTime,
-            name: oldName
+            action: 'delete', id: oldId,
+            date: oldDate, startTime: oldStartTime, name: oldName
           })
         }).then(() => {
-          sendToSheet(records[idx]);
+          return fetch(APPS_SCRIPT_URL, {
+            method: 'POST', mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+              action: 'add', id: records[idx].id,
+              date: getRecordDate(records[idx]),
+              startTime: records[idx].startTime, endTime: records[idx].endTime,
+              name: records[idx].name, tag: records[idx].tag || '',
+              duration: formatDuration(records[idx].duration)
+            })
+          });
         }).catch(err => console.error('Sheet edit sync error:', err));
       }
     }
@@ -1652,16 +2009,17 @@
     editingId = null;
     renderRecords();
     if (rec && APPS_SCRIPT_URL) {
+      pendingOps = pendingOps.filter(o => !(String(o.id) === String(rec.id) && o.type === 'add'));
+      addPendingOp({
+        type: 'delete', id: rec.id,
+        date: getRecordDate(rec), startTime: rec.startTime, name: rec.name
+      });
       fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
+        method: 'POST', mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
-          action: 'delete',
-          id: rec.id,
-          date: getRecordDate(rec),
-          startTime: rec.startTime,
-          name: rec.name
+          action: 'delete', id: rec.id,
+          date: getRecordDate(rec), startTime: rec.startTime, name: rec.name
         })
       }).catch(err => console.error('Sheet delete error:', err));
     }
@@ -1719,6 +2077,138 @@
     }
   }
 
+  // --- 앱 상태 백업 (할 일 + 타이머) ---
+  let appStateSyncTimer = null;
+  let isLoadingAppState = false;
+
+  function scheduleAppStateSave() {
+    if (isLoadingAppState) return;
+    if (!APPS_SCRIPT_URL) return;
+    clearTimeout(appStateSyncTimer);
+    appStateSyncTimer = setTimeout(() => syncAppStateToSheet(), 1500);
+  }
+
+  async function syncAppStateToSheet() {
+    if (!APPS_SCRIPT_URL) return;
+    try {
+      const localTimer = JSON.parse(localStorage.getItem('timerState') || 'null');
+      const state = {
+        todos,
+        timer: localTimer,
+        savedAt: Date.now()
+      };
+      const now = new Date();
+      const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'memo',
+          date: '__app_state__',
+          time: timeStr,
+          memo: JSON.stringify(state)
+        })
+      });
+    } catch (err) {
+      console.error('AppState sync error:', err);
+    }
+  }
+
+  async function loadAppStateFromSheet() {
+    if (!APPS_SCRIPT_URL) return;
+    try {
+      isLoadingAppState = true;
+      const url = APPS_SCRIPT_URL + '?action=getAppState';
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data && data.state) {
+        const parsed = JSON.parse(data.state);
+        const localSavedAt = parseInt(localStorage.getItem('appStateSavedAt') || '0', 10);
+        const remoteSavedAt = parsed.savedAt || 0;
+        if (remoteSavedAt > localSavedAt && Array.isArray(parsed.todos)) {
+          todos = parsed.todos;
+          saveTodos();
+          localStorage.setItem('appStateSavedAt', String(remoteSavedAt));
+          renderTodos();
+        }
+        applyRemoteTimerState(parsed.timer || null);
+      }
+    } catch (err) {
+      console.error('AppState load error:', err);
+    } finally {
+      isLoadingAppState = false;
+    }
+  }
+
+  function applyRemoteTimerState(remoteTimer) {
+    const localTimer = JSON.parse(localStorage.getItem('timerState') || 'null');
+    const isLocalRunning = !!timerInterval;
+    if (remoteTimer && remoteTimer.startTimestamp) {
+      if (!isLocalRunning) {
+        adoptRemoteTimer(remoteTimer);
+      } else if (localTimer && Math.abs(remoteTimer.startTimestamp - localTimer.startTimestamp) > 1000) {
+        if (remoteTimer.startTimestamp > localTimer.startTimestamp) {
+          silentStopTimer();
+          adoptRemoteTimer(remoteTimer);
+        }
+      }
+    } else {
+      if (isLocalRunning) silentStopTimer();
+    }
+  }
+
+  function adoptRemoteTimer(remoteTimer) {
+    isLoadingAppState = true;
+    try {
+      document.getElementById('nameInput').value = remoteTimer.taskName || '';
+      if (remoteTimer.tag && typeof selectTag === 'function') selectTag(remoteTimer.tag);
+      startTimestamp = new Date(remoteTimer.startTimestamp);
+      elapsed = Math.max(0, Math.floor((Date.now() - startTimestamp.getTime()) / 1000));
+      localStorage.setItem('timerState', JSON.stringify(remoteTimer));
+      document.getElementById('btnStart').disabled = true;
+      const bb = document.getElementById('btnBreak'); if (bb) bb.disabled = true;
+      const br = document.getElementById('btnResume'); if (br) br.disabled = true;
+      document.getElementById('btnStop').disabled = false;
+      document.getElementById('nameInput').disabled = true;
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        elapsed = Math.floor((Date.now() - startTimestamp.getTime()) / 1000);
+        renderStopwatch();
+      }, 200);
+      renderStopwatch();
+    } finally {
+      setTimeout(() => { isLoadingAppState = false; }, 100);
+    }
+  }
+
+  function silentStopTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    elapsed = 0;
+    startTimestamp = null;
+    renderStopwatch();
+    document.getElementById('btnStart').disabled = false;
+    const bb = document.getElementById('btnBreak'); if (bb) bb.disabled = false;
+    document.getElementById('btnStop').disabled = true;
+    document.getElementById('nameInput').disabled = false;
+    document.getElementById('nameInput').value = '';
+    selectedTag = '';
+    localStorage.removeItem('timerState');
+  }
+
+  // saveTodos 후크
+  const _origSaveTodosPwa = saveTodos;
+  saveTodos = function() {
+    _origSaveTodosPwa();
+    localStorage.setItem('appStateSavedAt', String(Date.now()));
+    scheduleAppStateSave();
+  };
+
+  if (APPS_SCRIPT_URL) {
+    setTimeout(loadAppStateFromSheet, 800);
+    setInterval(loadAppStateFromSheet, 60000);
+  }
+
   // --- 할 일 ---
   let todos = JSON.parse(localStorage.getItem('widgetTodos') || '[]');
   let todosCollapsed = false;
@@ -1729,6 +2219,13 @@
     document.getElementById('todosToggle').classList.toggle('collapsed', todosCollapsed);
   }
 
+  let memoCollapsed = false;
+  function toggleMemo() {
+    memoCollapsed = !memoCollapsed;
+    document.getElementById('memoCollapsible').classList.toggle('collapsed', memoCollapsed);
+    document.getElementById('memoToggle').classList.toggle('collapsed', memoCollapsed);
+  }
+
   function saveTodos() {
     localStorage.setItem('widgetTodos', JSON.stringify(todos));
   }
@@ -1737,7 +2234,7 @@
     const input = document.getElementById('todoInput');
     const text = input.value.trim();
     if (!text) return;
-    todos.push({ id: Date.now(), text, done: false });
+    todos.unshift({ id: Date.now(), text, done: false });
     saveTodos();
     renderTodos();
     input.value = '';
@@ -1746,7 +2243,47 @@
 
   function toggleTodo(id) {
     const t = todos.find(t => t.id === id);
-    if (t) { t.done = !t.done; saveTodos(); renderTodos(); }
+    if (!t) return;
+    t.done = !t.done;
+    todos = todos.filter(x => x.id !== id);
+    if (t.done) {
+      todos.push(t);
+    } else {
+      const firstDoneIdx = todos.findIndex(x => x.done);
+      if (firstDoneIdx === -1) todos.push(t);
+      else todos.splice(firstDoneIdx, 0, t);
+    }
+    saveTodos();
+    renderTodos();
+  }
+
+  function editTodo(id) {
+    const todo = todos.find(t => t.id === id);
+    if (!todo) return;
+    const list = document.getElementById('todoList');
+    const items = list.querySelectorAll('.todo-item');
+    const idx = todos.indexOf(todo);
+    const item = items[idx];
+    if (!item) return;
+    const textEl = item.querySelector('.todo-text');
+    const original = todo.text;
+    textEl.outerHTML = `<input class="todo-edit-input" id="editInput-${id}" value="${escapeHtml(original)}">`;
+    const input = document.getElementById('editInput-' + id);
+    input.focus();
+    input.select();
+    function finish() {
+      const newText = input.value.trim();
+      if (newText && newText !== original) {
+        todo.text = newText;
+        saveTodos();
+      }
+      renderTodos();
+    }
+    input.addEventListener('blur', finish);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') input.blur();
+      if (e.key === 'Escape') { input.value = original; input.blur(); }
+    });
   }
 
   function deleteTodo(id) {
@@ -1767,12 +2304,76 @@
     }
 
     list.innerHTML = todos.map(t => `
-      <div class="todo-item">
+      <div class="todo-item" data-id="${t.id}">
+        <span class="todo-drag">⋮⋮</span>
         <button class="todo-checkbox ${t.done ? 'checked' : ''}" onclick="toggleTodo(${t.id})"></button>
-        <span class="todo-text ${t.done ? 'done' : ''}">${escapeHtml(t.text)}</span>
+        ${!t.done ? `<button class="todo-start" onclick="startFromTodo(${t.id})">시작</button>` : ''}
+        <span class="todo-text ${t.done ? 'done' : ''}" ondblclick="editTodo(${t.id})">${escapeHtml(t.text)}</span>
         <button class="todo-delete" onclick="deleteTodo(${t.id})">×</button>
       </div>
     `).join('');
+
+    attachTodoDragHandlers();
+  }
+
+  // PWA용 포인터 기반 드래그 (터치+마우스 모두 지원)
+  let dragState = null;
+
+  function attachTodoDragHandlers() {
+    document.querySelectorAll('#todoList .todo-item').forEach(item => {
+      const handle = item.querySelector('.todo-drag');
+      if (!handle) return;
+      handle.addEventListener('pointerdown', onDragStart);
+    });
+  }
+
+  function onDragStart(e) {
+    e.preventDefault();
+    const item = e.target.closest('.todo-item');
+    if (!item) return;
+    const id = Number(item.dataset.id);
+    dragState = { id, elem: item, startY: e.clientY };
+    item.classList.add('dragging');
+    document.addEventListener('pointermove', onDragMove);
+    document.addEventListener('pointerup', onDragEnd);
+  }
+
+  function onDragMove(e) {
+    if (!dragState) return;
+    const list = document.getElementById('todoList');
+    const items = [...list.querySelectorAll('.todo-item')];
+    let closest = null;
+    let closestDist = Infinity;
+    for (const it of items) {
+      if (it === dragState.elem) continue;
+      const rect = it.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      const dist = Math.abs(e.clientY - mid);
+      if (dist < closestDist) { closestDist = dist; closest = it; }
+    }
+    items.forEach(it => it.classList.remove('drag-over'));
+    if (closest) closest.classList.add('drag-over');
+    dragState.targetId = closest ? Number(closest.dataset.id) : null;
+  }
+
+  function onDragEnd() {
+    document.removeEventListener('pointermove', onDragMove);
+    document.removeEventListener('pointerup', onDragEnd);
+    if (!dragState) return;
+    const { id, targetId } = dragState;
+    dragState = null;
+    document.querySelectorAll('#todoList .todo-item').forEach(el => {
+      el.classList.remove('dragging');
+      el.classList.remove('drag-over');
+    });
+    if (targetId == null || targetId === id) return;
+    const srcIdx = todos.findIndex(t => t.id === id);
+    const tgtIdx = todos.findIndex(t => t.id === targetId);
+    if (srcIdx === -1 || tgtIdx === -1) return;
+    const [moved] = todos.splice(srcIdx, 1);
+    todos.splice(tgtIdx, 0, moved);
+    saveTodos();
+    renderTodos();
   }
 
   // --- 초기 렌더링 ---
