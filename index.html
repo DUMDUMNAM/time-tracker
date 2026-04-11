@@ -2226,13 +2226,12 @@
     localStorage.removeItem('timerState');
   }
 
-  // saveTodos 후크
-  const _origSaveTodosPwa = saveTodos;
-  saveTodos = function() {
-    _origSaveTodosPwa();
-    localStorage.setItem('appStateSavedAt', String(Date.now()));
-    scheduleAppStateSave();
-  };
+  function markStateChanged() {
+    try {
+      localStorage.setItem('appStateSavedAt', String(Date.now()));
+      scheduleAppStateSave();
+    } catch (e) { console.error('markStateChanged error', e); }
+  }
 
   // 🛡 자동 복구: 로컬이 비었는데 savedAt 존재 → 시트에서 복구하도록 리셋
   if ((!todos || todos.length === 0) &&
@@ -2265,6 +2264,7 @@
 
   function saveTodos() {
     localStorage.setItem('widgetTodos', JSON.stringify(todos));
+    if (typeof markStateChanged === 'function') markStateChanged();
   }
 
   function addTodo() {
