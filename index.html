@@ -1718,7 +1718,6 @@
       elapsed = Math.floor((Date.now() - startTimestamp.getTime()) / 1000);
       renderStopwatch();
     }, 200);
-    if (typeof syncAppStateToSheet === 'function') syncAppStateToSheet();
   }
 
   function startFromTodo(todoId) {
@@ -1777,7 +1776,6 @@
     document.querySelectorAll('.tag-option').forEach(el => el.classList.remove('selected'));
 
     updateResumeButton();
-    if (typeof syncAppStateToSheet === 'function') syncAppStateToSheet();
   }
 
   function renderStopwatch() {
@@ -2077,173 +2075,6 @@
     }
   }
 
-  // --- 앱 상태 백업 (할 일 + 타이머) ---
-  let appStateSyncTimer = null;
-  let isLoadingAppState = false;
-
-  function scheduleAppStateSave() {
-    if (isLoadingAppState) return;
-    if (!APPS_SCRIPT_URL) return;
-    clearTimeout(appStateSyncTimer);
-    appStateSyncTimer = setTimeout(() => syncAppStateToSheet(), 1500);
-  }
-
-  let hasCompletedFirstLoad = false;
-
-  async function syncAppStateToSheet() {
-    if (!APPS_SCRIPT_URL) return;
-    if (!hasCompletedFirstLoad) return;
-    try {
-      const localTimer = JSON.parse(localStorage.getItem('timerState') || 'null');
-      const state = {
-        todos,
-        timer: localTimer,
-        savedAt: Date.now()
-      };
-      const now = new Date();
-      const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-      await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-          action: 'memo',
-          date: '__app_state__',
-          time: timeStr,
-          memo: JSON.stringify(state)
-        })
-      });
-    } catch (err) {
-      console.error('AppState sync error:', err);
-    }
-  }
-
-  async function loadAppStateFromSheet() {
-    if (!APPS_SCRIPT_URL) return;
-    try {
-      isLoadingAppState = true;
-      const url = APPS_SCRIPT_URL + '?action=getAppState';
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data && data.state) {
-        const parsed = JSON.parse(data.state);
-        const remoteTodos = Array.isArray(parsed.todos) ? parsed.todos : [];
-
-        // 🛡 안전장치 1: 원격이 비어있는데 로컬에 데이터 있으면 거부
-        if (todos.length > 0 && remoteTodos.length === 0) {
-          console.warn('[AppState] 원격이 비어있어 로컬 보호');
-          hasCompletedFirstLoad = true;
-          localStorage.setItem('appStateSavedAt', String(Date.now()));
-          syncAppStateToSheet();
-          return;
-        }
-
-        // 🛡 안전장치 2: 줄어드는 변경은 백업
-        if (remoteTodos.length < todos.length && todos.length > 0) {
-          localStorage.setItem('widgetTodos_backup', JSON.stringify(todos));
-          localStorage.setItem('widgetBackup_at', String(Date.now()));
-        }
-
-        const localSavedAt = parseInt(localStorage.getItem('appStateSavedAt') || '0', 10);
-        const remoteSavedAt = parsed.savedAt || 0;
-        const shouldOverwrite = (localSavedAt === 0) || (remoteSavedAt > localSavedAt);
-
-        if (shouldOverwrite) {
-          todos = remoteTodos;
-          saveTodos();
-          localStorage.setItem('appStateSavedAt', String(Math.max(remoteSavedAt, Date.now())));
-          renderTodos();
-        }
-        applyRemoteTimerState(parsed.timer || null);
-      } else {
-        if (todos.length > 0) {
-          hasCompletedFirstLoad = true;
-          localStorage.setItem('appStateSavedAt', String(Date.now()));
-          syncAppStateToSheet();
-          return;
-        }
-      }
-      hasCompletedFirstLoad = true;
-    } catch (err) {
-      console.error('AppState load error:', err);
-    } finally {
-      isLoadingAppState = false;
-    }
-  }
-
-  function applyRemoteTimerState(remoteTimer) {
-    const localTimer = JSON.parse(localStorage.getItem('timerState') || 'null');
-    const isLocalRunning = !!timerInterval;
-    if (remoteTimer && remoteTimer.startTimestamp) {
-      if (!isLocalRunning) {
-        adoptRemoteTimer(remoteTimer);
-      } else if (localTimer && Math.abs(remoteTimer.startTimestamp - localTimer.startTimestamp) > 1000) {
-        if (remoteTimer.startTimestamp > localTimer.startTimestamp) {
-          silentStopTimer();
-          adoptRemoteTimer(remoteTimer);
-        }
-      }
-    } else {
-      if (isLocalRunning) silentStopTimer();
-    }
-  }
-
-  function adoptRemoteTimer(remoteTimer) {
-    isLoadingAppState = true;
-    try {
-      document.getElementById('nameInput').value = remoteTimer.taskName || '';
-      if (remoteTimer.tag && typeof selectTag === 'function') selectTag(remoteTimer.tag);
-      startTimestamp = new Date(remoteTimer.startTimestamp);
-      elapsed = Math.max(0, Math.floor((Date.now() - startTimestamp.getTime()) / 1000));
-      localStorage.setItem('timerState', JSON.stringify(remoteTimer));
-      document.getElementById('btnStart').disabled = true;
-      const bb = document.getElementById('btnBreak'); if (bb) bb.disabled = true;
-      const br = document.getElementById('btnResume'); if (br) br.disabled = true;
-      document.getElementById('btnStop').disabled = false;
-      document.getElementById('nameInput').disabled = true;
-      if (timerInterval) clearInterval(timerInterval);
-      timerInterval = setInterval(() => {
-        elapsed = Math.floor((Date.now() - startTimestamp.getTime()) / 1000);
-        renderStopwatch();
-      }, 200);
-      renderStopwatch();
-    } finally {
-      setTimeout(() => { isLoadingAppState = false; }, 100);
-    }
-  }
-
-  function silentStopTimer() {
-    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
-    elapsed = 0;
-    startTimestamp = null;
-    renderStopwatch();
-    document.getElementById('btnStart').disabled = false;
-    const bb = document.getElementById('btnBreak'); if (bb) bb.disabled = false;
-    document.getElementById('btnStop').disabled = true;
-    document.getElementById('nameInput').disabled = false;
-    document.getElementById('nameInput').value = '';
-    selectedTag = '';
-    localStorage.removeItem('timerState');
-  }
-
-  function markStateChanged() {
-    try {
-      localStorage.setItem('appStateSavedAt', String(Date.now()));
-      scheduleAppStateSave();
-    } catch (e) { console.error('markStateChanged error', e); }
-  }
-
-  // 🛡 자동 복구: 로컬이 비었는데 savedAt 존재 → 시트에서 복구하도록 리셋
-  if ((!todos || todos.length === 0) &&
-      localStorage.getItem('appStateSavedAt') && localStorage.getItem('appStateSavedAt') !== '0') {
-    console.warn('[AppState] 로컬이 비었는데 savedAt 존재 — 시트에서 복구하기 위해 리셋');
-    localStorage.setItem('appStateSavedAt', '0');
-  }
-
-  if (APPS_SCRIPT_URL) {
-    setTimeout(loadAppStateFromSheet, 800);
-    setInterval(loadAppStateFromSheet, 60000);
-  }
 
   // --- 할 일 ---
   let todos = JSON.parse(localStorage.getItem('widgetTodos') || '[]');
@@ -2264,7 +2095,6 @@
 
   function saveTodos() {
     localStorage.setItem('widgetTodos', JSON.stringify(todos));
-    if (typeof markStateChanged === 'function') markStateChanged();
   }
 
   function addTodo() {
