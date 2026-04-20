@@ -632,6 +632,144 @@
   }
   .todo-delete:hover { color: #F44336; }
 
+  /* --- 할 일 탭 (아이젠하워 매트릭스) --- */
+  .todo-tab-section {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .todo-today-section {
+    background: rgba(255,255,255,0.7);
+    border-radius: 10px;
+    border: 1.5px solid rgba(91,134,229,0.2);
+  }
+  .todo-today-header {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    padding: 10px 12px;
+    gap: 6px;
+  }
+  .todo-today-header .todos-toggle {
+    font-size: 10px; color: #999; margin-right: 2px;
+    transition: transform 0.25s; display: inline-block;
+  }
+  .todo-today-header .todos-toggle.collapsed { transform: rotate(-90deg); }
+  .todo-today-title { font-size: 14px; font-weight: 700; color: #1A237E; }
+  .todo-today-count { font-size: 12px; color: #999; margin-left: auto; }
+  .todo-today-body { padding: 0 12px 10px; }
+  .todo-today-body.collapsed { display: none; }
+  .todo-today-list {
+    display: flex; flex-direction: column; gap: 4px; min-height: 40px;
+  }
+  .todo-today-empty {
+    text-align: center; color: #bbb; font-size: 13px; padding: 12px;
+  }
+  .todo-storage-title {
+    font-size: 14px; font-weight: 700; color: #555; padding: 0 4px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .todo-sync-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: #ccc; margin-left: 4px;
+  }
+  .todo-sync-dot.syncing { background: #FFA726; animation: pulse 0.6s infinite alternate; }
+  .todo-sync-dot.synced { background: #4CAF50; }
+  .todo-sync-dot.error { background: #F44336; }
+  @keyframes pulse { from { opacity: 1; } to { opacity: 0.4; } }
+
+  .eisenhower-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 380px) { .eisenhower-grid { grid-template-columns: 1fr; } }
+
+  .eq-cell {
+    border-radius: 10px; padding: 8px 10px; min-height: 80px;
+    display: flex; flex-direction: column; border: 1.5px solid;
+  }
+  .eq-cell[data-q="do"] { background: rgba(244,67,54,0.06); border-color: rgba(244,67,54,0.2); }
+  .eq-cell[data-q="schedule"] { background: rgba(255,193,7,0.06); border-color: rgba(255,193,7,0.25); }
+  .eq-cell[data-q="delegate"] { background: rgba(255,152,0,0.06); border-color: rgba(255,152,0,0.2); }
+  .eq-cell[data-q="eliminate"] { background: rgba(158,158,158,0.06); border-color: rgba(158,158,158,0.2); }
+
+  .eq-header {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+    font-size: 12px; font-weight: 700;
+  }
+  .eq-badge { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .eq-cell[data-q="do"] .eq-badge { background: #F44336; }
+  .eq-cell[data-q="schedule"] .eq-badge { background: #FFC107; }
+  .eq-cell[data-q="delegate"] .eq-badge { background: #FF9800; }
+  .eq-cell[data-q="eliminate"] .eq-badge { background: #9E9E9E; }
+  .eq-label { color: #555; }
+  .eq-sublabel { color: #999; font-weight: 400; font-size: 10px; }
+  .eq-count { margin-left: auto; font-size: 10px; color: #999; font-weight: 400; }
+
+  .eq-list { display: flex; flex-direction: column; gap: 3px; flex: 1; min-height: 30px; }
+
+  .eq-item {
+    display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+    background: rgba(255,255,255,0.7); border-radius: 6px; font-size: 13px;
+    transition: background 0.15s, opacity 0.12s; touch-action: pan-y;
+  }
+  .eq-item:hover { background: rgba(255,255,255,0.95); }
+  .eq-item.dragging { opacity: 0.4; }
+  .eq-item.drag-over { box-shadow: inset 0 2px 0 0 #5B86E5; }
+
+  .eq-item .todo-checkbox { width: 18px; height: 18px; border-width: 1.5px; }
+  .eq-item .todo-checkbox.checked::after { font-size: 11px; }
+  .eq-item .eq-text {
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .eq-item .eq-text.done { text-decoration: line-through; color: #aaa; }
+  .eq-item .todo-delete { font-size: 14px; }
+  .eq-item .todo-start { font-size: 10px; padding: 1px 5px; }
+
+  .eq-add-row { display: flex; gap: 4px; margin-top: 4px; }
+  .eq-add-input {
+    flex: 1; padding: 6px 8px; font-size: 12px;
+    border: 1px solid rgba(0,0,0,0.1); border-radius: 6px;
+    outline: none; background: rgba(255,255,255,0.8);
+  }
+  .eq-add-input:focus { border-color: #5B86E5; }
+  .eq-add-btn {
+    padding: 0 10px; font-size: 16px; border: none; border-radius: 6px;
+    background: rgba(0,0,0,0.06); cursor: pointer; color: #555;
+  }
+
+  .todo-quadrant-tag {
+    display: inline-block; font-size: 8px; padding: 0 4px; border-radius: 4px;
+    font-weight: 700; flex-shrink: 0; line-height: 16px; color: #fff;
+  }
+  .todo-quadrant-tag[data-q="do"] { background: #F44336; }
+  .todo-quadrant-tag[data-q="schedule"] { background: #FFC107; color: #333; }
+  .todo-quadrant-tag[data-q="delegate"] { background: #FF9800; }
+  .todo-quadrant-tag[data-q="eliminate"] { background: #9E9E9E; }
+
+  /* 완료 목록 */
+  .todo-done-section { margin-top: 4px; border-top: 1px solid rgba(0,0,0,0.06); padding-top: 4px; }
+  .todo-done-header {
+    display: flex; align-items: center; cursor: pointer; user-select: none;
+    padding: 6px 4px; gap: 6px;
+  }
+  .todo-done-title { font-size: 13px; font-weight: 600; color: #999; }
+  .todo-done-count { font-size: 12px; color: #bbb; }
+  .todo-done-clear {
+    margin-left: auto; background: none; border: none; font-size: 14px;
+    cursor: pointer; opacity: 0.4; transition: opacity 0.15s; padding: 0 4px;
+  }
+  .todo-done-clear:hover { opacity: 0.8; }
+  .todo-done-body { padding: 0 4px; }
+  .todo-done-body.collapsed { display: none; }
+  .todo-done-list { display: flex; flex-direction: column; gap: 3px; }
+  .todo-done-item {
+    display: flex; align-items: center; gap: 6px; padding: 4px 8px;
+    background: rgba(0,0,0,0.02); border-radius: 6px; font-size: 13px; color: #aaa;
+  }
+  .todo-done-item .eq-text { text-decoration: line-through; color: #aaa; }
+
   /* 기록 영역 */
   .records-body {
     flex: 1;
@@ -895,6 +1033,7 @@
       <span class="app-title">Time Tracker</span>
       <div class="tab-bar">
         <button class="tab-btn active" onclick="switchTab('main')">홈</button>
+        <button class="tab-btn" onclick="switchTab('todos')">할 일</button>
         <button class="tab-btn" onclick="switchTab('records')">기록</button>
         <button class="tab-btn" onclick="switchTab('stats')">통계</button>
         <button class="tab-btn" onclick="switchTab('settings')">설정</button>
@@ -920,7 +1059,7 @@
       <button class="btn btn-break" id="btnBreak" onclick="startBreak()">휴식</button>
       <button class="btn btn-stop" id="btnStop" onclick="stopTimer()" disabled>종료</button>
     </div>
-    <button class="btn-resume" id="btnResume" onclick="resumeLastTask()" disabled>이전 작업 이어서 시작</button>
+    <button class="btn-resume" id="btnResume" onclick="resumeLastTask()" disabled style="display:none;">이전 작업 이어서 시작</button>
 
     <div class="stopwatch" id="stopwatch">00:00:00</div>
     <div class="sync-status" id="syncStatus"></div>
@@ -951,6 +1090,65 @@
       </div>
     </div>
     </div><!-- /tab-main -->
+
+    <!-- 할 일 탭 -->
+    <div class="tab-content" id="tab-todos">
+      <div class="todo-tab-section">
+        <div class="todo-today-section">
+          <div class="todo-today-header" onclick="toggleTodaySection()">
+            <span class="todos-toggle" id="todayToggle">▼</span>
+            <span class="todo-today-title">오늘 할 일</span>
+            <span class="todo-today-count" id="todayCount"></span>
+          </div>
+          <div class="todo-today-body" id="todayBody">
+            <div class="todo-add-row">
+              <input type="text" class="todo-add-input" id="todayTodoInput" placeholder="오늘 할 일 추가..." onkeydown="if(event.key==='Enter')addTodayTodo()">
+              <button class="todo-add-btn" onclick="addTodayTodo()">+</button>
+            </div>
+            <div class="todo-today-list" id="todayTodoList"></div>
+          </div>
+        </div>
+        <div>
+          <div class="todo-storage-title">
+            할 일 저장소
+            <span class="todo-sync-dot" id="todoSyncDot" title="백업 상태"></span>
+          </div>
+          <div class="eisenhower-grid" style="margin-top:8px;">
+            <div class="eq-cell" data-q="do">
+              <div class="eq-header"><span class="eq-badge"></span><span class="eq-label">Do</span><span class="eq-sublabel">긴급 + 중요</span><span class="eq-count" id="eqCount-do"></span></div>
+              <div class="eq-list" id="eqList-do"></div>
+              <div class="eq-add-row"><input type="text" class="eq-add-input" placeholder="추가..." onkeydown="if(event.key==='Enter')addToQuadrant('do',this)"><button class="eq-add-btn" onclick="addToQuadrant('do',this.previousElementSibling)">+</button></div>
+            </div>
+            <div class="eq-cell" data-q="schedule">
+              <div class="eq-header"><span class="eq-badge"></span><span class="eq-label">Schedule</span><span class="eq-sublabel">중요</span><span class="eq-count" id="eqCount-schedule"></span></div>
+              <div class="eq-list" id="eqList-schedule"></div>
+              <div class="eq-add-row"><input type="text" class="eq-add-input" placeholder="추가..." onkeydown="if(event.key==='Enter')addToQuadrant('schedule',this)"><button class="eq-add-btn" onclick="addToQuadrant('schedule',this.previousElementSibling)">+</button></div>
+            </div>
+            <div class="eq-cell" data-q="delegate">
+              <div class="eq-header"><span class="eq-badge"></span><span class="eq-label">Delegate</span><span class="eq-sublabel">긴급</span><span class="eq-count" id="eqCount-delegate"></span></div>
+              <div class="eq-list" id="eqList-delegate"></div>
+              <div class="eq-add-row"><input type="text" class="eq-add-input" placeholder="추가..." onkeydown="if(event.key==='Enter')addToQuadrant('delegate',this)"><button class="eq-add-btn" onclick="addToQuadrant('delegate',this.previousElementSibling)">+</button></div>
+            </div>
+            <div class="eq-cell" data-q="eliminate">
+              <div class="eq-header"><span class="eq-badge"></span><span class="eq-label">Eliminate</span><span class="eq-sublabel">나중에</span><span class="eq-count" id="eqCount-eliminate"></span></div>
+              <div class="eq-list" id="eqList-eliminate"></div>
+              <div class="eq-add-row"><input type="text" class="eq-add-input" placeholder="추가..." onkeydown="if(event.key==='Enter')addToQuadrant('eliminate',this)"><button class="eq-add-btn" onclick="addToQuadrant('eliminate',this.previousElementSibling)">+</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="todo-done-section">
+          <div class="todo-done-header" onclick="toggleDoneSection()">
+            <span class="todos-toggle" id="doneToggle" style="font-size:10px;color:#999;">▶</span>
+            <span class="todo-done-title">완료 목록</span>
+            <span class="todo-done-count" id="doneCount"></span>
+            <button class="todo-done-clear" onclick="event.stopPropagation(); clearDoneTodos()" title="완료 항목 모두 삭제">🗑</button>
+          </div>
+          <div class="todo-done-body collapsed" id="doneBody">
+            <div class="todo-done-list" id="doneTodoList"></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- 기록 탭 -->
     <div class="tab-content" id="tab-records">
@@ -1079,12 +1277,14 @@
     document.getElementById('tab-' + tabName).classList.add('active');
     document.querySelectorAll('.tab-btn').forEach(el => {
       if ((tabName === 'main' && el.textContent === '홈') ||
+          (tabName === 'todos' && el.textContent === '할 일') ||
           (tabName === 'records' && el.textContent === '기록') ||
           (tabName === 'stats' && el.textContent === '통계') ||
           (tabName === 'settings' && el.textContent === '설정')) {
         el.classList.add('active');
       }
     });
+    if (tabName === 'todos') renderTodoTab();
     if (tabName === 'stats') renderStats();
   }
 
@@ -2080,6 +2280,16 @@
   let todos = JSON.parse(localStorage.getItem('widgetTodos') || '[]');
   let todosCollapsed = false;
 
+  // 마이그레이션: 기존 할 일에 quadrant/isToday 필드 추가
+  (function migrateTodos() {
+    let changed = false;
+    todos.forEach(t => {
+      if (!t.quadrant) { t.quadrant = 'do'; changed = true; }
+      if (t.isToday === undefined) { t.isToday = true; changed = true; }
+    });
+    if (changed) localStorage.setItem('widgetTodos', JSON.stringify(todos));
+  })();
+
   function toggleTodos() {
     todosCollapsed = !todosCollapsed;
     document.getElementById('todosCollapsible').classList.toggle('collapsed', todosCollapsed);
@@ -2093,17 +2303,23 @@
     document.getElementById('memoToggle').classList.toggle('collapsed', memoCollapsed);
   }
 
+  let todoSyncTimer = null;
   function saveTodos() {
     localStorage.setItem('widgetTodos', JSON.stringify(todos));
+    clearTimeout(todoSyncTimer);
+    const dot = document.getElementById('todoSyncDot');
+    if (dot) dot.className = 'todo-sync-dot syncing';
+    todoSyncTimer = setTimeout(() => syncTodosToSheet(), 1000);
   }
 
   function addTodo() {
     const input = document.getElementById('todoInput');
     const text = input.value.trim();
     if (!text) return;
-    todos.unshift({ id: Date.now(), text, done: false });
+    todos.unshift({ id: Date.now(), text, done: false, quadrant: 'do', isToday: true });
     saveTodos();
     renderTodos();
+    renderTodoTab();
     input.value = '';
     input.focus();
   }
@@ -2112,73 +2328,56 @@
     const t = todos.find(t => t.id === id);
     if (!t) return;
     t.done = !t.done;
-    todos = todos.filter(x => x.id !== id);
-    if (t.done) {
-      todos.push(t);
-    } else {
-      const firstDoneIdx = todos.findIndex(x => x.done);
-      if (firstDoneIdx === -1) todos.push(t);
-      else todos.splice(firstDoneIdx, 0, t);
-    }
     saveTodos();
     renderTodos();
+    renderTodoTab();
   }
 
   function editTodo(id) {
     const todo = todos.find(t => t.id === id);
     if (!todo) return;
-    const list = document.getElementById('todoList');
-    const items = list.querySelectorAll('.todo-item');
-    const idx = todos.indexOf(todo);
-    const item = items[idx];
-    if (!item) return;
-    const textEl = item.querySelector('.todo-text');
-    const original = todo.text;
-    textEl.outerHTML = `<input class="todo-edit-input" id="editInput-${id}" value="${escapeHtml(original)}">`;
-    const input = document.getElementById('editInput-' + id);
-    input.focus();
-    input.select();
-    function finish() {
-      const newText = input.value.trim();
-      if (newText && newText !== original) {
-        todo.text = newText;
-        saveTodos();
-      }
+    const newText = prompt('할 일 수정', todo.text);
+    if (newText !== null && newText.trim()) {
+      todo.text = newText.trim();
+      saveTodos();
       renderTodos();
+      renderTodoTab();
     }
-    input.addEventListener('blur', finish);
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') input.blur();
-      if (e.key === 'Escape') { input.value = original; input.blur(); }
-    });
   }
 
   function deleteTodo(id) {
     todos = todos.filter(t => t.id !== id);
     saveTodos();
     renderTodos();
+    renderTodoTab();
   }
 
+  // 홈 탭: isToday이고 미완료인 항목만 표시
   function renderTodos() {
     const list = document.getElementById('todoList');
     const count = document.getElementById('todosCount');
-    const remaining = todos.filter(t => !t.done).length;
-    count.textContent = todos.length > 0 ? `(${remaining}/${todos.length})` : '';
+    const todayActive = todos.filter(t => t.isToday && !t.done);
+    count.textContent = todayActive.length > 0 ? `(${todayActive.length})` : '';
 
-    if (todos.length === 0) {
+    if (todayActive.length === 0) {
       list.innerHTML = '<div class="empty-msg">할 일이 없습니다</div>';
       return;
     }
 
-    list.innerHTML = todos.map(t => `
+    const QUADRANT_LABELS = { do: '🔴', schedule: '🟡', delegate: '🟠', eliminate: '⚪' };
+
+    list.innerHTML = todayActive.map(t => {
+      const qLabel = QUADRANT_LABELS[t.quadrant] || '';
+      return `
       <div class="todo-item" data-id="${t.id}">
         <span class="todo-drag">⋮⋮</span>
-        <button class="todo-checkbox ${t.done ? 'checked' : ''}" onclick="toggleTodo(${t.id})"></button>
-        ${!t.done ? `<button class="todo-start" onclick="startFromTodo(${t.id})">시작</button>` : ''}
-        <span class="todo-text ${t.done ? 'done' : ''}" ondblclick="editTodo(${t.id})">${escapeHtml(t.text)}</span>
+        <button class="todo-checkbox" onclick="toggleTodo(${t.id})"></button>
+        <button class="todo-start" onclick="startFromTodo(${t.id})">시작</button>
+        <span class="todo-text" ondblclick="editTodo(${t.id})">${qLabel} ${escapeHtml(t.text)}</span>
         <button class="todo-delete" onclick="deleteTodo(${t.id})">×</button>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     attachTodoDragHandlers();
   }
@@ -2243,8 +2442,256 @@
     renderTodos();
   }
 
+  // === 할 일 탭 로직 ===
+  let todayCollapsed = false;
+  let doneCollapsed = true;
+
+  function toggleTodaySection() {
+    todayCollapsed = !todayCollapsed;
+    document.getElementById('todayBody').classList.toggle('collapsed', todayCollapsed);
+    document.getElementById('todayToggle').classList.toggle('collapsed', todayCollapsed);
+  }
+
+  function toggleDoneSection() {
+    doneCollapsed = !doneCollapsed;
+    document.getElementById('doneBody').classList.toggle('collapsed', doneCollapsed);
+    document.getElementById('doneToggle').textContent = doneCollapsed ? '▶' : '▼';
+  }
+
+  function addTodayTodo() {
+    const input = document.getElementById('todayTodoInput');
+    const text = input.value.trim();
+    if (!text) return;
+    todos.unshift({ id: Date.now(), text, done: false, quadrant: 'do', isToday: true });
+    saveTodos();
+    renderTodos();
+    renderTodoTab();
+    input.value = '';
+    input.focus();
+  }
+
+  function addToQuadrant(quadrant, inputEl) {
+    const text = inputEl.value.trim();
+    if (!text) return;
+    todos.push({ id: Date.now(), text, done: false, quadrant, isToday: false });
+    saveTodos();
+    renderTodoTab();
+    inputEl.value = '';
+    inputEl.focus();
+  }
+
+  function clearDoneTodos() {
+    const doneCount = todos.filter(t => t.done).length;
+    if (doneCount === 0) return;
+    if (!confirm(`완료된 ${doneCount}개 항목을 모두 삭제할까요?`)) return;
+    todos = todos.filter(t => !t.done);
+    saveTodos();
+    renderTodos();
+    renderTodoTab();
+  }
+
+  function renderTodoTab() {
+    const QUADRANT_LABELS = { do: '🔴', schedule: '🟡', delegate: '🟠', eliminate: '⚪' };
+    const doneTodos = todos.filter(t => t.done);
+
+    // 오늘 할 일 (미완료만)
+    const todayActive = todos.filter(t => t.isToday && !t.done);
+    const todayList = document.getElementById('todayTodoList');
+    const todayCount = document.getElementById('todayCount');
+    if (todayCount) todayCount.textContent = todayActive.length > 0 ? todayActive.length : '';
+
+    if (todayList) {
+      if (todayActive.length === 0) {
+        todayList.innerHTML = '<div class="todo-today-empty">저장소에서 할 일을 드래그하여 추가하세요</div>';
+      } else {
+        todayList.innerHTML = todayActive.map(t => `
+          <div class="eq-item" data-id="${t.id}">
+            <button class="todo-checkbox" onclick="toggleTodo(${t.id})"></button>
+            <button class="todo-start" onclick="startFromTodo(${t.id})">시작</button>
+            <span class="eq-text" ondblclick="editTodo(${t.id})">${QUADRANT_LABELS[t.quadrant] || ''} ${escapeHtml(t.text)}</span>
+            <button class="todo-delete" onclick="deleteTodo(${t.id})">×</button>
+          </div>`).join('');
+      }
+    }
+
+    // 아이젠하워 4분면 (미완료만)
+    ['do', 'schedule', 'delegate', 'eliminate'].forEach(q => {
+      const qTodos = todos.filter(t => t.quadrant === q && !t.isToday && !t.done);
+      const list = document.getElementById('eqList-' + q);
+      const countEl = document.getElementById('eqCount-' + q);
+      if (countEl) countEl.textContent = qTodos.length > 0 ? qTodos.length : '';
+      if (!list) return;
+      if (qTodos.length === 0) {
+        list.innerHTML = '';
+      } else {
+        list.innerHTML = qTodos.map(t => `
+          <div class="eq-item" data-id="${t.id}">
+            <button class="todo-checkbox" onclick="toggleTodo(${t.id})"></button>
+            <span class="eq-text" ondblclick="editTodo(${t.id})">${escapeHtml(t.text)}</span>
+            <button class="todo-delete" onclick="deleteTodo(${t.id})">×</button>
+          </div>`).join('');
+      }
+    });
+
+    // 완료 목록
+    const doneList = document.getElementById('doneTodoList');
+    const doneCount = document.getElementById('doneCount');
+    if (doneCount) doneCount.textContent = doneTodos.length > 0 ? `(${doneTodos.length})` : '';
+    if (doneList) {
+      if (doneTodos.length === 0) {
+        doneList.innerHTML = '<div style="text-align:center;color:#ccc;font-size:12px;padding:8px;">완료된 항목이 없습니다</div>';
+      } else {
+        doneList.innerHTML = doneTodos.map(t => {
+          const qLabel = QUADRANT_LABELS[t.quadrant] || '';
+          return `
+          <div class="todo-done-item">
+            <button class="todo-checkbox checked" onclick="toggleTodo(${t.id})"></button>
+            <span class="eq-text done">${qLabel} ${escapeHtml(t.text)}</span>
+            <button class="todo-delete" onclick="deleteTodo(${t.id})">×</button>
+          </div>`;
+        }).join('');
+      }
+    }
+
+    attachEisenhowerDragHandlers();
+  }
+
+  // 할 일 탭 드래그앤드롭 (PWA: pointer events 기반)
+  let eqDragState = null;
+
+  function attachEisenhowerDragHandlers() {
+    const allItems = document.querySelectorAll('#tab-todos .eq-item');
+    allItems.forEach(item => {
+      item.addEventListener('pointerdown', onEqDragStart);
+    });
+
+    // 드롭 영역 설정
+    const dropZones = [
+      { el: document.getElementById('todayTodoList'), target: 'today' },
+      { el: document.getElementById('eqList-do'), target: 'do' },
+      { el: document.getElementById('eqList-schedule'), target: 'schedule' },
+      { el: document.getElementById('eqList-delegate'), target: 'delegate' },
+      { el: document.getElementById('eqList-eliminate'), target: 'eliminate' },
+    ];
+    document.querySelectorAll('#tab-todos .eq-cell').forEach(cell => {
+      dropZones.push({ el: cell, target: cell.dataset.q });
+    });
+    // 드롭 영역을 전역에 저장
+    window._eqDropZones = dropZones;
+  }
+
+  function onEqDragStart(e) {
+    const item = e.target.closest('.eq-item');
+    if (!item) return;
+    // 체크박스, 삭제, 시작 버튼 클릭은 드래그 아님
+    if (e.target.closest('.todo-checkbox, .todo-delete, .todo-start')) return;
+    e.preventDefault();
+    const id = Number(item.dataset.id);
+    eqDragState = { id, elem: item, startY: e.clientY, startX: e.clientX, moved: false };
+    item.classList.add('dragging');
+    document.addEventListener('pointermove', onEqDragMove);
+    document.addEventListener('pointerup', onEqDragEnd);
+  }
+
+  function onEqDragMove(e) {
+    if (!eqDragState) return;
+    const dx = Math.abs(e.clientX - eqDragState.startX);
+    const dy = Math.abs(e.clientY - eqDragState.startY);
+    if (dx < 5 && dy < 5) return;
+    eqDragState.moved = true;
+
+    // 어떤 드롭존 위에 있는지 확인
+    const zones = window._eqDropZones || [];
+    let foundZone = null;
+    for (const z of zones) {
+      if (!z.el) continue;
+      const rect = z.el.getBoundingClientRect();
+      if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        foundZone = z;
+      }
+    }
+
+    // 하이라이트
+    document.querySelectorAll('#tab-todos .eq-cell').forEach(c => c.style.outline = '');
+    document.getElementById('todayTodoList').style.outline = '';
+    if (foundZone) {
+      const highlight = foundZone.target === 'today'
+        ? document.getElementById('todayTodoList')
+        : foundZone.el.closest('.eq-cell') || foundZone.el;
+      highlight.style.outline = '2px dashed rgba(91,134,229,0.5)';
+      highlight.style.outlineOffset = '-2px';
+      eqDragState.dropTarget = foundZone.target;
+    } else {
+      eqDragState.dropTarget = null;
+    }
+  }
+
+  function onEqDragEnd() {
+    document.removeEventListener('pointermove', onEqDragMove);
+    document.removeEventListener('pointerup', onEqDragEnd);
+    if (!eqDragState) return;
+    const { id, dropTarget, moved } = eqDragState;
+    eqDragState = null;
+
+    // 하이라이트 제거
+    document.querySelectorAll('#tab-todos .eq-cell').forEach(c => c.style.outline = '');
+    const todayList = document.getElementById('todayTodoList');
+    if (todayList) todayList.style.outline = '';
+    document.querySelectorAll('#tab-todos .eq-item').forEach(el => el.classList.remove('dragging'));
+
+    if (!moved || !dropTarget) return;
+    const t = todos.find(x => x.id === id);
+    if (!t) return;
+
+    if (dropTarget === 'today') {
+      t.isToday = true;
+    } else {
+      t.isToday = false;
+      t.quadrant = dropTarget;
+    }
+    saveTodos();
+    renderTodos();
+    renderTodoTab();
+  }
+
+  // Google Sheets 단방향 백업
+  async function syncTodosToSheet() {
+    const dot = document.getElementById('todoSyncDot');
+    if (!APPS_SCRIPT_URL) { if (dot) dot.className = 'todo-sync-dot'; return; }
+    try {
+      const today = new Date();
+      const dateStr = today.getFullYear() + '-' +
+        String(today.getMonth() + 1).padStart(2, '0') + '-' +
+        String(today.getDate()).padStart(2, '0');
+      const timeStr = String(today.getHours()).padStart(2, '0') + ':' +
+        String(today.getMinutes()).padStart(2, '0');
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'todos',
+          date: dateStr,
+          time: timeStr,
+          todos: todos.map(t => ({
+            text: t.text,
+            quadrant: t.quadrant || 'do',
+            isToday: !!t.isToday,
+            done: !!t.done,
+            goalId: t.goalId || null
+          }))
+        })
+      });
+      if (dot) dot.className = 'todo-sync-dot synced';
+    } catch (err) {
+      console.error('Todo sync error:', err);
+      if (dot) dot.className = 'todo-sync-dot error';
+    }
+  }
+
   // --- 초기 렌더링 ---
   renderTodos();
+  renderTodoTab();
   renderRecords();
   updateResumeButton();
 
