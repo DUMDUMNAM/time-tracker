@@ -726,6 +726,12 @@
   .eq-item .eq-text.done { text-decoration: line-through; color: #aaa; }
   .eq-item .todo-delete { font-size: 14px; }
   .eq-item .todo-start { font-size: 10px; padding: 1px 5px; }
+  .todo-edit-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 12px; color: #aaa; padding: 0 2px; flex-shrink: 0;
+    line-height: 1; touch-action: manipulation;
+  }
+  .todo-edit-btn:hover { color: #1A237E; }
 
   .eq-add-row { display: flex; gap: 4px; margin-top: 4px; }
   .eq-add-input {
@@ -1198,6 +1204,36 @@
         <div class="manual-modal-buttons">
           <button class="manual-btn manual-btn-cancel" onclick="closeManualAdd()">취소</button>
           <button class="manual-btn manual-btn-save" onclick="saveManualAdd()">추가</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 할 일 편집 모달 -->
+    <div class="manual-modal" id="todoEditModal" style="display:none;">
+      <div class="manual-modal-content">
+        <div class="manual-modal-title">할 일 편집</div>
+        <div class="manual-field">
+          <label>내용</label>
+          <input type="text" id="todoEditText">
+        </div>
+        <div class="manual-field">
+          <label>분면</label>
+          <select id="todoEditQuadrant">
+            <option value="do">🔴 Do (긴급+중요)</option>
+            <option value="schedule">🟡 Schedule (중요)</option>
+            <option value="delegate">🟠 Delegate (긴급)</option>
+            <option value="eliminate">⚪ Eliminate (나중에)</option>
+          </select>
+        </div>
+        <div class="manual-field">
+          <label style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="todoEditIsToday" style="width:auto;">
+            오늘 할 일에 표시
+          </label>
+        </div>
+        <div class="manual-modal-buttons">
+          <button class="manual-btn manual-btn-cancel" onclick="closeTodoEdit()">취소</button>
+          <button class="manual-btn manual-btn-save" onclick="saveTodoEdit()">저장</button>
         </div>
       </div>
     </div>
@@ -2333,16 +2369,39 @@
     renderTodoTab();
   }
 
-  function editTodo(id) {
-    const todo = todos.find(t => t.id === id);
-    if (!todo) return;
-    const newText = prompt('할 일 수정', todo.text);
-    if (newText !== null && newText.trim()) {
-      todo.text = newText.trim();
-      saveTodos();
-      renderTodos();
-      renderTodoTab();
-    }
+  let editingTodoId = null;
+
+  function editTodo(id) { openTodoEdit(id); }
+
+  function openTodoEdit(todoId) {
+    const t = todos.find(x => x.id === todoId);
+    if (!t) return;
+    editingTodoId = todoId;
+    document.getElementById('todoEditText').value = t.text;
+    document.getElementById('todoEditQuadrant').value = t.quadrant || 'do';
+    document.getElementById('todoEditIsToday').checked = !!t.isToday;
+    document.getElementById('todoEditModal').style.display = 'flex';
+    setTimeout(() => document.getElementById('todoEditText').focus(), 80);
+  }
+
+  function closeTodoEdit() {
+    document.getElementById('todoEditModal').style.display = 'none';
+    editingTodoId = null;
+  }
+
+  function saveTodoEdit() {
+    if (!editingTodoId) return;
+    const t = todos.find(x => x.id === editingTodoId);
+    if (!t) return;
+    const newText = document.getElementById('todoEditText').value.trim();
+    if (!newText) { alert('내용을 입력해주세요.'); return; }
+    t.text = newText;
+    t.quadrant = document.getElementById('todoEditQuadrant').value || 'do';
+    t.isToday = document.getElementById('todoEditIsToday').checked;
+    saveTodos();
+    renderTodos();
+    renderTodoTab();
+    closeTodoEdit();
   }
 
   function deleteTodo(id) {
@@ -2508,7 +2567,8 @@
           <div class="eq-item" data-id="${t.id}">
             <button class="todo-checkbox" onclick="toggleTodo(${t.id})"></button>
             <button class="todo-start" onclick="startFromTodo(${t.id})">시작</button>
-            <span class="eq-text" ondblclick="editTodo(${t.id})">${QUADRANT_LABELS[t.quadrant] || ''} ${escapeHtml(t.text)}</span>
+            <span class="eq-text">${QUADRANT_LABELS[t.quadrant] || ''} ${escapeHtml(t.text)}</span>
+            <button class="todo-edit-btn" onclick="event.stopPropagation();openTodoEdit(${t.id})" title="편집">✏</button>
             <button class="todo-delete" onclick="deleteTodo(${t.id})">×</button>
           </div>`).join('');
       }
@@ -2527,7 +2587,8 @@
         list.innerHTML = qTodos.map(t => `
           <div class="eq-item" data-id="${t.id}">
             <button class="todo-checkbox" onclick="toggleTodo(${t.id})"></button>
-            <span class="eq-text" ondblclick="editTodo(${t.id})">${escapeHtml(t.text)}</span>
+            <span class="eq-text">${escapeHtml(t.text)}</span>
+            <button class="todo-edit-btn" onclick="event.stopPropagation();openTodoEdit(${t.id})" title="편집">✏</button>
             <button class="todo-delete" onclick="deleteTodo(${t.id})">×</button>
           </div>`).join('');
       }
@@ -2584,7 +2645,7 @@
     const item = e.target.closest('.eq-item');
     if (!item) return;
     // 체크박스, 삭제, 시작 버튼 클릭은 드래그 아님
-    if (e.target.closest('.todo-checkbox, .todo-delete, .todo-start')) return;
+    if (e.target.closest('.todo-checkbox, .todo-delete, .todo-start, .todo-edit-btn')) return;
     e.preventDefault();
     const id = Number(item.dataset.id);
     eqDragState = { id, elem: item, startY: e.clientY, startX: e.clientX, moved: false };
