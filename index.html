@@ -404,6 +404,25 @@
   .btn-start { background: #4CAF50; }
   .btn-break { background: #FFA726; }
   .btn-stop { background: #F44336; }
+  .btn-split { background: #7E57C2; font-size: 12px; padding: 6px 10px; }
+  .btn-split:hover:not(:disabled) { background: #5E35B1; }
+
+  .split-panel {
+    margin: 4px 0 0;
+    padding: 6px 10px 4px;
+    background: rgba(126,87,194,0.06);
+    border-radius: 8px;
+    border: 1px solid rgba(126,87,194,0.18);
+  }
+  .split-item {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; padding: 2px 0; color: #555;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+  }
+  .split-item:last-child { border-bottom: none; }
+  .split-item-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
+  .split-item-time { color: #7E57C2; font-variant-numeric: tabular-nums; flex-shrink: 0; margin-left: 6px; }
+  .split-current { font-size: 10px; color: #bbb; text-align: center; padding-top: 3px; }
 
   .btn-resume {
     width: 100%;
@@ -1063,11 +1082,13 @@
     <div class="buttons">
       <button class="btn btn-start" id="btnStart" onclick="startTimer()">시작</button>
       <button class="btn btn-break" id="btnBreak" onclick="startBreak()">휴식</button>
+      <button class="btn btn-split" id="btnSplit" onclick="doSplit()" disabled style="display:none;">⚑ 스플릿</button>
       <button class="btn btn-stop" id="btnStop" onclick="stopTimer()" disabled>종료</button>
     </div>
     <button class="btn-resume" id="btnResume" onclick="resumeLastTask()" disabled style="display:none;">이전 작업 이어서 시작</button>
 
     <div class="stopwatch" id="stopwatch">00:00:00</div>
+    <div class="split-panel" id="splitPanel" style="display:none;"></div>
     <div class="sync-status" id="syncStatus"></div>
 
     <div class="todos">
@@ -1659,6 +1680,82 @@
   let timerInterval = null;
   let startTimestamp = null;
   let elapsed = 0;
+  let splitSegments = [];
+  let splitSegmentStart = null;
+  let splitCounter = 0;
+
+  function doSplit() {
+    if (!timerInterval) return;
+    const now = Date.now();
+    if (now - splitSegmentStart < 5000) return;
+    splitCounter++;
+    splitSegments.push({
+      name: document.getElementById('nameInput').value.trim() + ` [${splitCounter}]`,
+      start: splitSegmentStart,
+      end: now,
+      tag: selectedTag
+    });
+    splitSegmentStart = now;
+    const state = JSON.parse(localStorage.getItem('timerState') || '{}');
+    state.splitSegments = splitSegments;
+    state.splitSegmentStart = splitSegmentStart;
+    state.splitCounter = splitCounter;
+    localStorage.setItem('timerState', JSON.stringify(state));
+    renderSplitPanel();
+  }
+
+  function renderSplitPanel() {
+    const panel = document.getElementById('splitPanel');
+    if (!panel) return;
+    if (splitSegments.length === 0) { panel.style.display = 'none'; return; }
+    panel.style.display = 'block';
+    function fmtSec(sec) {
+      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+      return h > 0
+        ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+        : `${m}:${String(s).padStart(2,'0')}`;
+    }
+    panel.innerHTML = splitSegments.map(seg => {
+      const dur = fmtSec(Math.floor((seg.end - seg.start) / 1000));
+      return `<div class="split-item">
+        <span class="split-item-name">${escapeHtml(seg.name)}</span>
+        <span class="split-item-time">${dur}</span>
+      </div>`;
+    }).join('') + `<div class="split-current">진행 중...</div>`;
+  }
+
+  function saveSplitRecords(endTimestamp) {
+    const name = document.getElementById('nameInput').value.trim();
+    const dateStr = startTimestamp.getFullYear() + '-' +
+      String(startTimestamp.getMonth() + 1).padStart(2, '0') + '-' +
+      String(startTimestamp.getDate()).padStart(2, '0');
+    splitCounter++;
+    const endMs = typeof endTimestamp === 'number' ? endTimestamp : endTimestamp.getTime();
+    const allSegs = [...splitSegments, {
+      name: name + ` [${splitCounter}]`,
+      start: splitSegmentStart, end: endMs, tag: selectedTag
+    }];
+    const newRecords = allSegs.map(seg => ({
+      id: seg.start,
+      name: seg.name,
+      tag: seg.tag || selectedTag,
+      startTime: formatHHMM(new Date(seg.start)),
+      endTime: formatHHMM(new Date(seg.end)),
+      duration: Math.max(1, Math.floor((seg.end - seg.start) / 60000)),
+      date: dateStr
+    }));
+    newRecords.slice().reverse().forEach(r => records.unshift(r));
+    saveRecords(); renderRecords();
+    newRecords.forEach(r => sendToSheet(r));
+  }
+
+  function resetSplitState() {
+    splitSegments = []; splitSegmentStart = null; splitCounter = 0;
+    const btn = document.getElementById('btnSplit');
+    if (btn) { btn.disabled = true; btn.style.display = 'none'; }
+    const panel = document.getElementById('splitPanel');
+    if (panel) panel.style.display = 'none';
+  }
   let records = JSON.parse(localStorage.getItem('timeRecords') || '[]');
   let editingId = null;
 
@@ -1937,17 +2034,25 @@
 
     startTimestamp = new Date();
     elapsed = 0;
+    splitSegments = [];
+    splitSegmentStart = startTimestamp.getTime();
+    splitCounter = 0;
     document.getElementById('btnStart').disabled = true;
     document.getElementById('btnBreak').disabled = true;
     document.getElementById('btnResume').disabled = true;
     document.getElementById('btnStop').disabled = false;
+    document.getElementById('btnSplit').disabled = false;
+    document.getElementById('btnSplit').style.display = '';
     document.getElementById('nameInput').disabled = true;
 
     // 타이머 상태 저장 (앱 재시작 시 복원용)
     localStorage.setItem('timerState', JSON.stringify({
       startTimestamp: startTimestamp.toISOString(),
       taskName: name,
-      tag: selectedTag
+      tag: selectedTag,
+      splitSegments: [],
+      splitSegmentStart: splitSegmentStart,
+      splitCounter: 0
     }));
 
     timerInterval = setInterval(() => {
@@ -1974,27 +2079,24 @@
 
     // 5초 이하는 기록하지 않음
     if (elapsedSec > 5) {
-      const name = document.getElementById('nameInput').value.trim();
-      const now = new Date();
-      const dateStr = now.getFullYear() + '-' +
-        String(now.getMonth() + 1).padStart(2, '0') + '-' +
-        String(now.getDate()).padStart(2, '0');
-      const record = {
-        id: Date.now(),
-        name: name,
-        tag: selectedTag,
-        startTime: formatHHMM(startTimestamp),
-        endTime: formatHHMM(endTimestamp),
-        duration: Math.floor((endTimestamp - startTimestamp) / 60000),
-        date: dateStr
-      };
-
-      records.unshift(record);
-      saveRecords();
-      renderRecords();
-      sendToSheet(record);
+      if (splitSegments.length > 0) {
+        saveSplitRecords(endTimestamp);
+      } else {
+        const name = document.getElementById('nameInput').value.trim();
+        const now = new Date();
+        const dateStr = now.getFullYear() + '-' +
+          String(now.getMonth() + 1).padStart(2, '0') + '-' +
+          String(now.getDate()).padStart(2, '0');
+        const record = {
+          id: Date.now(), name, tag: selectedTag,
+          startTime: formatHHMM(startTimestamp), endTime: formatHHMM(endTimestamp),
+          duration: Math.floor((endTimestamp - startTimestamp) / 60000), date: dateStr
+        };
+        records.unshift(record); saveRecords(); renderRecords(); sendToSheet(record);
+      }
     }
 
+    resetSplitState();
     elapsed = 0;
     startTimestamp = null;
     renderStopwatch();
@@ -2779,10 +2881,22 @@
         });
       }
 
+      // 스플릿 복원
+      if (state.splitSegments && state.splitSegments.length > 0) {
+        splitSegments = state.splitSegments;
+        splitSegmentStart = state.splitSegmentStart;
+        splitCounter = state.splitCounter || 0;
+        renderSplitPanel();
+      } else {
+        splitSegmentStart = state.splitSegmentStart || startTimestamp.getTime();
+      }
+
       document.getElementById('btnStart').disabled = true;
       document.getElementById('btnBreak').disabled = true;
       document.getElementById('btnResume').disabled = true;
       document.getElementById('btnStop').disabled = false;
+      document.getElementById('btnSplit').disabled = false;
+      document.getElementById('btnSplit').style.display = '';
 
       renderStopwatch();
       timerInterval = setInterval(() => {
