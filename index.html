@@ -404,25 +404,6 @@
   .btn-start { background: #4CAF50; }
   .btn-break { background: #FFA726; }
   .btn-stop { background: #F44336; }
-  .btn-split { background: #7E57C2; font-size: 12px; padding: 6px 10px; }
-  .btn-split:hover:not(:disabled) { background: #5E35B1; }
-
-  .split-panel {
-    margin: 4px 0 0;
-    padding: 6px 10px 4px;
-    background: rgba(126,87,194,0.06);
-    border-radius: 8px;
-    border: 1px solid rgba(126,87,194,0.18);
-  }
-  .split-item {
-    display: flex; justify-content: space-between; align-items: center;
-    font-size: 11px; padding: 2px 0; color: #555;
-    border-bottom: 1px solid rgba(0,0,0,0.05);
-  }
-  .split-item:last-child { border-bottom: none; }
-  .split-item-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
-  .split-item-time { color: #7E57C2; font-variant-numeric: tabular-nums; flex-shrink: 0; margin-left: 6px; }
-  .split-current { font-size: 10px; color: #bbb; text-align: center; padding-top: 3px; }
 
   .btn-resume {
     width: 100%;
@@ -1082,13 +1063,11 @@
     <div class="buttons">
       <button class="btn btn-start" id="btnStart" onclick="startTimer()">시작</button>
       <button class="btn btn-break" id="btnBreak" onclick="startBreak()">휴식</button>
-      <button class="btn btn-split" id="btnSplit" onclick="doSplit()" disabled style="display:none;">⚑ 스플릿</button>
       <button class="btn btn-stop" id="btnStop" onclick="stopTimer()" disabled>종료</button>
     </div>
     <button class="btn-resume" id="btnResume" onclick="resumeLastTask()" disabled style="display:none;">이전 작업 이어서 시작</button>
 
     <div class="stopwatch" id="stopwatch">00:00:00</div>
-    <div class="split-panel" id="splitPanel" style="display:none;"></div>
     <div class="sync-status" id="syncStatus"></div>
 
     <div class="todos">
@@ -1245,6 +1224,10 @@
             <option value="delegate">🟠 Delegate (긴급)</option>
             <option value="eliminate">⚪ Eliminate (나중에)</option>
           </select>
+        </div>
+        <div class="manual-field">
+          <label>마감일 <span style="font-size:11px;color:#aaa;">(선택)</span></label>
+          <input type="date" id="todoEditDueDate">
         </div>
         <div class="manual-field">
           <label style="display:flex;align-items:center;gap:8px;">
@@ -1680,82 +1663,6 @@
   let timerInterval = null;
   let startTimestamp = null;
   let elapsed = 0;
-  let splitSegments = [];
-  let splitSegmentStart = null;
-  let splitCounter = 0;
-
-  function doSplit() {
-    if (!timerInterval) return;
-    const now = Date.now();
-    if (now - splitSegmentStart < 5000) return;
-    splitCounter++;
-    splitSegments.push({
-      name: document.getElementById('nameInput').value.trim() + ` [${splitCounter}]`,
-      start: splitSegmentStart,
-      end: now,
-      tag: selectedTag
-    });
-    splitSegmentStart = now;
-    const state = JSON.parse(localStorage.getItem('timerState') || '{}');
-    state.splitSegments = splitSegments;
-    state.splitSegmentStart = splitSegmentStart;
-    state.splitCounter = splitCounter;
-    localStorage.setItem('timerState', JSON.stringify(state));
-    renderSplitPanel();
-  }
-
-  function renderSplitPanel() {
-    const panel = document.getElementById('splitPanel');
-    if (!panel) return;
-    if (splitSegments.length === 0) { panel.style.display = 'none'; return; }
-    panel.style.display = 'block';
-    function fmtSec(sec) {
-      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
-      return h > 0
-        ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
-        : `${m}:${String(s).padStart(2,'0')}`;
-    }
-    panel.innerHTML = splitSegments.map(seg => {
-      const dur = fmtSec(Math.floor((seg.end - seg.start) / 1000));
-      return `<div class="split-item">
-        <span class="split-item-name">${escapeHtml(seg.name)}</span>
-        <span class="split-item-time">${dur}</span>
-      </div>`;
-    }).join('') + `<div class="split-current">진행 중...</div>`;
-  }
-
-  function saveSplitRecords(endTimestamp) {
-    const name = document.getElementById('nameInput').value.trim();
-    const dateStr = startTimestamp.getFullYear() + '-' +
-      String(startTimestamp.getMonth() + 1).padStart(2, '0') + '-' +
-      String(startTimestamp.getDate()).padStart(2, '0');
-    splitCounter++;
-    const endMs = typeof endTimestamp === 'number' ? endTimestamp : endTimestamp.getTime();
-    const allSegs = [...splitSegments, {
-      name: name + ` [${splitCounter}]`,
-      start: splitSegmentStart, end: endMs, tag: selectedTag
-    }];
-    const newRecords = allSegs.map(seg => ({
-      id: seg.start,
-      name: seg.name,
-      tag: seg.tag || selectedTag,
-      startTime: formatHHMM(new Date(seg.start)),
-      endTime: formatHHMM(new Date(seg.end)),
-      duration: Math.max(1, Math.floor((seg.end - seg.start) / 60000)),
-      date: dateStr
-    }));
-    newRecords.slice().reverse().forEach(r => records.unshift(r));
-    saveRecords(); renderRecords();
-    newRecords.forEach(r => sendToSheet(r));
-  }
-
-  function resetSplitState() {
-    splitSegments = []; splitSegmentStart = null; splitCounter = 0;
-    const btn = document.getElementById('btnSplit');
-    if (btn) { btn.disabled = true; btn.style.display = 'none'; }
-    const panel = document.getElementById('splitPanel');
-    if (panel) panel.style.display = 'none';
-  }
   let records = JSON.parse(localStorage.getItem('timeRecords') || '[]');
   let editingId = null;
 
@@ -2034,25 +1941,17 @@
 
     startTimestamp = new Date();
     elapsed = 0;
-    splitSegments = [];
-    splitSegmentStart = startTimestamp.getTime();
-    splitCounter = 0;
     document.getElementById('btnStart').disabled = true;
     document.getElementById('btnBreak').disabled = true;
     document.getElementById('btnResume').disabled = true;
     document.getElementById('btnStop').disabled = false;
-    document.getElementById('btnSplit').disabled = false;
-    document.getElementById('btnSplit').style.display = '';
     document.getElementById('nameInput').disabled = true;
 
     // 타이머 상태 저장 (앱 재시작 시 복원용)
     localStorage.setItem('timerState', JSON.stringify({
       startTimestamp: startTimestamp.toISOString(),
       taskName: name,
-      tag: selectedTag,
-      splitSegments: [],
-      splitSegmentStart: splitSegmentStart,
-      splitCounter: 0
+      tag: selectedTag
     }));
 
     timerInterval = setInterval(() => {
@@ -2079,24 +1978,18 @@
 
     // 5초 이하는 기록하지 않음
     if (elapsedSec > 5) {
-      if (splitSegments.length > 0) {
-        saveSplitRecords(endTimestamp);
-      } else {
-        const name = document.getElementById('nameInput').value.trim();
-        const now = new Date();
-        const dateStr = now.getFullYear() + '-' +
-          String(now.getMonth() + 1).padStart(2, '0') + '-' +
-          String(now.getDate()).padStart(2, '0');
-        const record = {
-          id: Date.now(), name, tag: selectedTag,
-          startTime: formatHHMM(startTimestamp), endTime: formatHHMM(endTimestamp),
-          duration: Math.floor((endTimestamp - startTimestamp) / 60000), date: dateStr
-        };
-        records.unshift(record); saveRecords(); renderRecords(); sendToSheet(record);
-      }
+      const name = document.getElementById('nameInput').value.trim();
+      const now = new Date();
+      const dateStr = now.getFullYear() + '-' +
+        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+        String(now.getDate()).padStart(2, '0');
+      const record = {
+        id: Date.now(), name, tag: selectedTag,
+        startTime: formatHHMM(startTimestamp), endTime: formatHHMM(endTimestamp),
+        duration: Math.floor((endTimestamp - startTimestamp) / 60000), date: dateStr
+      };
+      records.unshift(record); saveRecords(); renderRecords(); sendToSheet(record);
     }
-
-    resetSplitState();
     elapsed = 0;
     startTimestamp = null;
     renderStopwatch();
@@ -2418,12 +2311,13 @@
   let todos = JSON.parse(localStorage.getItem('widgetTodos') || '[]');
   let todosCollapsed = false;
 
-  // 마이그레이션: 기존 할 일에 quadrant/isToday 필드 추가
+  // 마이그레이션: 기존 할 일에 누락 필드 추가
   (function migrateTodos() {
     let changed = false;
     todos.forEach(t => {
       if (!t.quadrant) { t.quadrant = 'do'; changed = true; }
       if (t.isToday === undefined) { t.isToday = true; changed = true; }
+      if (t.dueDate === undefined) { t.dueDate = null; changed = true; }
     });
     if (changed) localStorage.setItem('widgetTodos', JSON.stringify(todos));
   })();
@@ -2454,7 +2348,7 @@
     const input = document.getElementById('todoInput');
     const text = input.value.trim();
     if (!text) return;
-    todos.unshift({ id: Date.now(), text, done: false, quadrant: 'do', isToday: true });
+    todos.unshift({ id: Date.now(), text, done: false, quadrant: 'do', isToday: true, dueDate: null });
     saveTodos();
     renderTodos();
     renderTodoTab();
@@ -2481,6 +2375,7 @@
     editingTodoId = todoId;
     document.getElementById('todoEditText').value = t.text;
     document.getElementById('todoEditQuadrant').value = t.quadrant || 'do';
+    document.getElementById('todoEditDueDate').value = t.dueDate || '';
     document.getElementById('todoEditIsToday').checked = !!t.isToday;
     document.getElementById('todoEditModal').style.display = 'flex';
     setTimeout(() => document.getElementById('todoEditText').focus(), 80);
@@ -2499,6 +2394,7 @@
     if (!newText) { alert('내용을 입력해주세요.'); return; }
     t.text = newText;
     t.quadrant = document.getElementById('todoEditQuadrant').value || 'do';
+    t.dueDate = document.getElementById('todoEditDueDate').value || null;
     t.isToday = document.getElementById('todoEditIsToday').checked;
     saveTodos();
     renderTodos();
@@ -2513,28 +2409,42 @@
     renderTodoTab();
   }
 
-  // 홈 탭: isToday이고 미완료인 항목만 표시
+  // 홈 탭: isToday 또는 dueDate <= 오늘인 미완료 항목 표시
   function renderTodos() {
     const list = document.getElementById('todoList');
     const count = document.getElementById('todosCount');
-    const todayActive = todos.filter(t => t.isToday && !t.done);
-    count.textContent = todayActive.length > 0 ? `(${todayActive.length})` : '';
+    const todayStr = new Date().toISOString().slice(0, 10);
 
-    if (todayActive.length === 0) {
+    const active = todos.filter(t => {
+      if (t.done) return false;
+      if (t.isToday) return true;
+      if (t.dueDate && t.dueDate <= todayStr) return true;
+      return false;
+    });
+
+    const overdue = active.filter(t => t.dueDate && t.dueDate < todayStr);
+    const rest    = active.filter(t => !(t.dueDate && t.dueDate < todayStr));
+    const sorted  = [...overdue, ...rest];
+
+    count.textContent = sorted.length > 0 ? `(${sorted.length})` : '';
+
+    if (sorted.length === 0) {
       list.innerHTML = '<div class="empty-msg">할 일이 없습니다</div>';
       return;
     }
 
     const QUADRANT_LABELS = { do: '🔴', schedule: '🟡', delegate: '🟠', eliminate: '⚪' };
 
-    list.innerHTML = todayActive.map(t => {
+    list.innerHTML = sorted.map(t => {
       const qLabel = QUADRANT_LABELS[t.quadrant] || '';
+      const isOverdue = t.dueDate && t.dueDate < todayStr;
+      const overdueIcon = isOverdue ? '🚨 ' : '';
       return `
       <div class="todo-item" data-id="${t.id}">
         <span class="todo-drag">⋮⋮</span>
         <button class="todo-checkbox" onclick="toggleTodo(${t.id})"></button>
         <button class="todo-start" onclick="startFromTodo(${t.id})">시작</button>
-        <span class="todo-text" ondblclick="editTodo(${t.id})">${qLabel} ${escapeHtml(t.text)}</span>
+        <span class="todo-text" ondblclick="editTodo(${t.id})">${overdueIcon}${qLabel} ${escapeHtml(t.text)}</span>
         <button class="todo-delete" onclick="deleteTodo(${t.id})">×</button>
       </div>
     `;
@@ -2623,7 +2533,7 @@
     const input = document.getElementById('todayTodoInput');
     const text = input.value.trim();
     if (!text) return;
-    todos.unshift({ id: Date.now(), text, done: false, quadrant: 'do', isToday: true });
+    todos.unshift({ id: Date.now(), text, done: false, quadrant: 'do', isToday: true, dueDate: null });
     saveTodos();
     renderTodos();
     renderTodoTab();
@@ -2881,22 +2791,10 @@
         });
       }
 
-      // 스플릿 복원
-      if (state.splitSegments && state.splitSegments.length > 0) {
-        splitSegments = state.splitSegments;
-        splitSegmentStart = state.splitSegmentStart;
-        splitCounter = state.splitCounter || 0;
-        renderSplitPanel();
-      } else {
-        splitSegmentStart = state.splitSegmentStart || startTimestamp.getTime();
-      }
-
       document.getElementById('btnStart').disabled = true;
       document.getElementById('btnBreak').disabled = true;
       document.getElementById('btnResume').disabled = true;
       document.getElementById('btnStop').disabled = false;
-      document.getElementById('btnSplit').disabled = false;
-      document.getElementById('btnSplit').style.display = '';
 
       renderStopwatch();
       timerInterval = setInterval(() => {
