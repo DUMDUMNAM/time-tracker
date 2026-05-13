@@ -402,8 +402,8 @@
   .btn:active { transform: scale(0.97); }
   .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
   .btn-start { background: #4CAF50; }
-  .btn-break { background: #FFA726; }
   .btn-stop { background: #F44336; }
+  .btn-timer { background: #5B86E5; }
 
   .btn-resume {
     width: 100%;
@@ -1062,8 +1062,8 @@
 
     <div class="buttons">
       <button class="btn btn-start" id="btnStart" onclick="startTimer()">시작</button>
-      <button class="btn btn-break" id="btnBreak" onclick="startBreak()">휴식</button>
       <button class="btn btn-stop" id="btnStop" onclick="stopTimer()" disabled>종료</button>
+      <button class="btn btn-timer" id="btnTimer" onclick="startPomodoro()">타이머</button>
     </div>
     <button class="btn-resume" id="btnResume" onclick="resumeLastTask()" disabled style="display:none;">이전 작업 이어서 시작</button>
 
@@ -1883,15 +1883,32 @@
     }
   }
 
-  function startBreak() {
-    document.getElementById('nameInput').value = '휴식';
-    selectedTag = '휴식';
-    document.getElementById('tagLabel').textContent = '휴식';
-    document.getElementById('tagSelect').classList.add('has-tag');
-    document.querySelectorAll('.tag-option').forEach(el => {
-      el.classList.toggle('selected', el.textContent === '휴식');
-    });
-    startTimer();
+  // ========== 간단 타이머 버튼 (30분 카운트다운) ==========
+  const POMODORO_SECS = 30 * 60;
+  let isPomodoroCountdown = false;
+  let pomodoroEndElapsed = 0;
+
+  function startPomodoro() {
+    if (!timerInterval) {
+      const name = document.getElementById('nameInput').value.trim();
+      if (!name) {
+        document.getElementById('nameInput').focus();
+        document.getElementById('nameInput').style.borderColor = '#F44336';
+        setTimeout(() => document.getElementById('nameInput').style.borderColor = 'rgba(0,0,0,0.1)', 1500);
+        return;
+      }
+      startTimer();
+    }
+    isPomodoroCountdown = true;
+    pomodoroEndElapsed = elapsed + POMODORO_SECS;
+    document.getElementById('btnTimer').disabled = true;
+  }
+
+  function onPomodoroComplete() {
+    document.getElementById('btnTimer').disabled = false;
+    try {
+      new Notification('⏱ 30분 완료!', { body: '타이머가 끝났어요. 잠깐 쉬어가요!' });
+    } catch(_) {}
   }
 
   function startFromRecord(id) {
@@ -1942,7 +1959,7 @@
     startTimestamp = new Date();
     elapsed = 0;
     document.getElementById('btnStart').disabled = true;
-    document.getElementById('btnBreak').disabled = true;
+    document.getElementById('btnTimer').disabled = true;
     document.getElementById('btnResume').disabled = true;
     document.getElementById('btnStop').disabled = false;
     document.getElementById('nameInput').disabled = true;
@@ -1990,11 +2007,12 @@
       };
       records.unshift(record); saveRecords(); renderRecords(); sendToSheet(record);
     }
+    isPomodoroCountdown = false;
     elapsed = 0;
     startTimestamp = null;
     renderStopwatch();
     document.getElementById('btnStart').disabled = false;
-    document.getElementById('btnBreak').disabled = false;
+    document.getElementById('btnTimer').disabled = false;
     document.getElementById('btnStop').disabled = true;
     document.getElementById('nameInput').disabled = false;
     document.getElementById('nameInput').value = '';
@@ -2010,10 +2028,25 @@
   }
 
   function renderStopwatch() {
-    const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
-    const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
-    const s = String(elapsed % 60).padStart(2, '0');
-    document.getElementById('stopwatch').textContent = `${h}:${m}:${s}`;
+    const sw = document.getElementById('stopwatch');
+    if (isPomodoroCountdown) {
+      const remaining = Math.max(0, pomodoroEndElapsed - elapsed);
+      if (remaining <= 0 && timerInterval) {
+        isPomodoroCountdown = false;
+        onPomodoroComplete();
+      }
+      const h = String(Math.floor(remaining / 3600)).padStart(2, '0');
+      const m = String(Math.floor((remaining % 3600) / 60)).padStart(2, '0');
+      const s = String(remaining % 60).padStart(2, '0');
+      sw.textContent = `⏱ ${h}:${m}:${s}`;
+      sw.style.color = remaining <= 300 ? '#F44336' : '#5B86E5';
+    } else {
+      const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+      const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+      const s = String(elapsed % 60).padStart(2, '0');
+      sw.textContent = `${h}:${m}:${s}`;
+      sw.style.color = '';
+    }
   }
 
   // --- 기록 ---
@@ -2792,7 +2825,7 @@
       }
 
       document.getElementById('btnStart').disabled = true;
-      document.getElementById('btnBreak').disabled = true;
+      document.getElementById('btnTimer').disabled = true;
       document.getElementById('btnResume').disabled = true;
       document.getElementById('btnStop').disabled = false;
 
