@@ -919,6 +919,35 @@
   .record-time { color: #666; font-variant-numeric: tabular-nums; white-space: nowrap; margin-right: 8px; }
   .record-duration { color: #1A237E; font-weight: 600; white-space: nowrap; margin-right: 8px; }
   .record-name { font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .record-item { flex-wrap: wrap; }
+  .record-retro {
+    flex-basis: 100%;
+    font-size: 11px;
+    color: #888;
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid rgba(0,0,0,0.07);
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .retro-textarea {
+    width: 100%;
+    min-height: 90px;
+    max-height: 180px;
+    padding: 10px;
+    font-size: 13px;
+    font-family: inherit;
+    border: 1.5px solid rgba(0,0,0,0.12);
+    border-radius: 8px;
+    outline: none;
+    resize: vertical;
+    line-height: 1.5;
+    box-sizing: border-box;
+    margin-bottom: 2px;
+    background: rgba(245,245,245,0.7);
+  }
+  .retro-textarea:focus { border-color: #5B86E5; background: #fff; }
 
   /* 수정 모드 */
   .record-edit {
@@ -1204,6 +1233,19 @@
         <div class="manual-modal-buttons">
           <button class="manual-btn manual-btn-cancel" onclick="closeManualAdd()">취소</button>
           <button class="manual-btn manual-btn-save" onclick="saveManualAdd()">추가</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 작업 회고 모달 -->
+    <div class="manual-modal" id="retroModal" style="display:none;">
+      <div class="manual-modal-content" style="max-width:400px;">
+        <div class="manual-modal-title">✍️ 작업 회고</div>
+        <div id="retroTaskInfo" style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.6;"></div>
+        <textarea id="retroText" class="retro-textarea" placeholder="잘된 점, 개선할 점, 다음에 이어서 할 것... (자유롭게)"></textarea>
+        <div class="manual-modal-buttons">
+          <button class="manual-btn manual-btn-cancel" onclick="skipRetro()">건너뛰기</button>
+          <button class="manual-btn manual-btn-save" onclick="saveRetro()">저장</button>
         </div>
       </div>
     </div>
@@ -1859,7 +1901,8 @@
           action: 'add', id: record.id, date: dateStr,
           startTime: record.startTime, endTime: record.endTime,
           name: record.name, tag: record.tag || '',
-          duration: formatDuration(record.duration)
+          duration: formatDuration(record.duration),
+          retro: record.retro || ''
         })
       });
       showSyncStatus('시트 기록 완료 (확인 대기)', 'success');
@@ -1993,6 +2036,7 @@
     const endTimestamp = new Date();
     const elapsedSec = Math.floor((endTimestamp - startTimestamp) / 1000);
 
+    let pendingRetroRecord = null;
     // 5초 이하는 기록하지 않음
     if (elapsedSec > 5) {
       const name = document.getElementById('nameInput').value.trim();
@@ -2005,7 +2049,11 @@
         startTime: formatHHMM(startTimestamp), endTime: formatHHMM(endTimestamp),
         duration: Math.floor((endTimestamp - startTimestamp) / 60000), date: dateStr
       };
-      records.unshift(record); saveRecords(); renderRecords(); sendToSheet(record);
+      if (elapsedSec >= 1200) {
+        pendingRetroRecord = record;
+      } else {
+        records.unshift(record); saveRecords(); renderRecords(); sendToSheet(record);
+      }
     }
     isPomodoroCountdown = false;
     elapsed = 0;
@@ -2025,6 +2073,42 @@
     document.querySelectorAll('.tag-option').forEach(el => el.classList.remove('selected'));
 
     updateResumeButton();
+
+    if (pendingRetroRecord) showRetroModal(pendingRetroRecord);
+  }
+
+  let _retroRecord = null;
+
+  function finalizeRecord(record) {
+    records.unshift(record);
+    saveRecords();
+    renderRecords();
+    sendToSheet(record);
+  }
+
+  function showRetroModal(record) {
+    _retroRecord = record;
+    document.getElementById('retroTaskInfo').textContent =
+      `${record.name}${record.tag ? '  ·  ' + record.tag : ''}  ·  ${formatDuration(record.duration)}`;
+    document.getElementById('retroText').value = '';
+    document.getElementById('retroModal').style.display = 'flex';
+    setTimeout(() => document.getElementById('retroText').focus(), 200);
+  }
+
+  function saveRetro() {
+    if (!_retroRecord) return;
+    const text = document.getElementById('retroText').value.trim();
+    if (text) _retroRecord.retro = text;
+    finalizeRecord(_retroRecord);
+    _retroRecord = null;
+    document.getElementById('retroModal').style.display = 'none';
+  }
+
+  function skipRetro() {
+    if (!_retroRecord) return;
+    finalizeRecord(_retroRecord);
+    _retroRecord = null;
+    document.getElementById('retroModal').style.display = 'none';
   }
 
   function renderStopwatch() {
@@ -2183,6 +2267,7 @@
           </div>`;
       }
       const tagHtml = r.tag ? `<span class="record-tag">${escapeHtml(r.tag)}</span>` : '';
+      const retroHtml = r.retro ? `<div class="record-retro">💬 ${escapeHtml(r.retro)}</div>` : '';
       return `
         <div class="record-item" onclick="startEdit(${r.id})">
           <span class="record-date">${shortDate}</span>
@@ -2190,6 +2275,7 @@
           <span class="record-duration">${formatDuration(r.duration)}</span>
           ${tagHtml}
           <span class="record-name">${escapeHtml(r.name)}</span>
+          ${retroHtml}
         </div>`;
     }).join('');
   }
