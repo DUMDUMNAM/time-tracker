@@ -1587,7 +1587,8 @@
             startTime: startTime,
             endTime: endTime,
             duration: parseDurationStr(r.duration),
-            date: toDate(r.date)
+            date: toDate(r.date),
+            retro: r.retro || ''
           };
         });
         reconcilePendingOps(sheetRecords);
@@ -1738,6 +1739,16 @@
     savePendingOps();
   }
 
+  function syncRecordMatches(sheetRec, localRec) {
+    return String(sheetRec.name || '') === String(localRec.name || '') &&
+           String(sheetRec.startTime || '') === String(localRec.startTime || '') &&
+           String(sheetRec.endTime || '') === String(localRec.endTime || '') &&
+           String(sheetRec.tag || '') === String(localRec.tag || '') &&
+           String(sheetRec.retro || '') === String(localRec.retro || '') &&
+           Number(sheetRec.duration || 0) === Number(localRec.duration || 0) &&
+           String(sheetRec.date || getRecordDate(sheetRec)) === String(localRec.date || getRecordDate(localRec));
+  }
+
   function reconcilePendingOps(sheetRecords) {
     const sheetIdSet = new Set(sheetRecords.map(r => String(r.id)));
     const prevCount = pendingOps.length;
@@ -1749,9 +1760,7 @@
       } else if (op.type === 'edit') {
         const sheetRec = sheetRecords.find(r => String(r.id) === String(op.id));
         if (!sheetRec) return true;
-        return !(sheetRec.name === op.record.name &&
-                 sheetRec.startTime === op.record.startTime &&
-                 sheetRec.endTime === op.record.endTime);
+        return !syncRecordMatches(sheetRec, op.record);
       }
       return false;
     });
@@ -1786,7 +1795,8 @@
               action: 'add', id: op.record.id, date: op.record.date,
               startTime: op.record.startTime, endTime: op.record.endTime,
               name: op.record.name, tag: op.record.tag || '',
-              duration: formatDuration(op.record.duration)
+              duration: formatDuration(op.record.duration),
+              retro: op.record.retro || ''
             })
           });
         } else if (op.type === 'delete') {
@@ -1814,7 +1824,8 @@
               action: 'add', id: op.record.id, date: op.record.date,
               startTime: op.record.startTime, endTime: op.record.endTime,
               name: op.record.name, tag: op.record.tag || '',
-              duration: formatDuration(op.record.duration)
+              duration: formatDuration(op.record.duration),
+              retro: op.record.retro || ''
             })
           });
         }
@@ -2338,7 +2349,8 @@
               date: getRecordDate(records[idx]),
               startTime: records[idx].startTime, endTime: records[idx].endTime,
               name: records[idx].name, tag: records[idx].tag || '',
-              duration: formatDuration(records[idx].duration)
+              duration: formatDuration(records[idx].duration),
+              retro: records[idx].retro || ''
             })
           });
         }).catch(err => console.error('Sheet edit sync error:', err));
