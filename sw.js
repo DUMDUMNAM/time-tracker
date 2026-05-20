@@ -1,4 +1,4 @@
-const CACHE_NAME = 'timetracker-v5';
+const CACHE_NAME = 'timetracker-v6';
 
 self.addEventListener('install', e => {
   self.skipWaiting();

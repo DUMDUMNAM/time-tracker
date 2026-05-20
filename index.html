@@ -888,6 +888,27 @@
   }
   .manual-btn-cancel { background: rgba(0,0,0,0.08); color: #555; }
   .manual-btn-save { background: #5B86E5; color: #fff; }
+  .gap-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 12px;
+  }
+  .gap-choice-grid .manual-btn {
+    padding: 9px 8px;
+    font-size: 12px;
+  }
+  .gap-detail-panel {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(0,0,0,0.08);
+  }
+  .gap-hint {
+    font-size: 11px;
+    color: #888;
+    line-height: 1.4;
+    margin-top: -4px;
+  }
   .manual-btn-save:hover { background: #4A75D4; }
 
   .record-sort-bar {
@@ -1218,6 +1239,32 @@
       </div>
       <div class="records-body" id="recordsBody" style="flex:1;overflow-y:auto;">
         <div class="record-list" id="recordList"></div>
+      </div>
+    </div>
+
+    <!-- 기록 공백 감지 모달 -->
+    <div class="manual-modal" id="gapModal" style="display:none;">
+      <div class="manual-modal-content">
+        <div class="manual-modal-title">기록 공백 감지됨</div>
+        <div id="gapMessage" style="font-size:13px; color:#555; margin-bottom:10px; line-height:1.5;"></div>
+        <div class="gap-choice-grid" id="gapChoiceGrid">
+          <button class="manual-btn manual-btn-save" onclick="chooseGapType('work')">업무</button>
+          <button class="manual-btn" style="background:#6A1B9A;color:#fff;" onclick="chooseGapType('distraction')">딴짓</button>
+          <button class="manual-btn" style="background:#78909C;color:#fff;" onclick="chooseGapType('break')">휴식</button>
+          <button class="manual-btn" style="background:#546E7A;color:#fff;" onclick="chooseGapType('other')">기타</button>
+          <button class="manual-btn manual-btn-cancel" style="grid-column:1 / -1;" onclick="ignoreGapPrompt()">무시</button>
+        </div>
+        <div class="gap-detail-panel" id="gapDetailPanel" style="display:none;">
+          <div class="manual-field">
+            <label id="gapDetailLabel">작업명</label>
+            <input type="text" id="gapDetailInput" onclick="clearGapDefaultName()" onfocus="clearGapDefaultName()" onkeydown="if(event.key==='Enter')submitGapDetail()">
+          </div>
+          <div class="gap-hint" id="gapDetailHint"></div>
+          <div class="manual-modal-buttons">
+            <button class="manual-btn manual-btn-cancel" onclick="backToGapChoices()">뒤로</button>
+            <button class="manual-btn manual-btn-save" id="gapDetailSubmitBtn" onclick="submitGapDetail()">시작</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1642,7 +1689,7 @@
   const DEFAULT_TAGS = [
     '업무', '회의', '개발', '디자인', '기획',
     '공부', '독서', '운동', '식사', '휴식',
-    '이동', '전화', '정리', '개인'
+    '이동', '전화', '정리', '개인', '딴짓', '기타'
   ];
 
   // --- 태그 드롭다운 ---
@@ -1862,6 +1909,269 @@
     }, 60000);
   }
 
+  // --- 업무시간 기록 공백 감지 ---
+  const GAP_THRESHOLD_MIN = 15;
+  const GAP_CHECK_INTERVAL_MS = 60000;
+  const WORK_WINDOWS_MIN = [
+    { start: 11 * 60, end: 13 * 60 },
+    { start: 14 * 60, end: 19 * 60 }
+  ];
+  let gapCheckTimer = null;
+  let gapPromptRange = null;
+  let ignoredGapKey = '';
+  let gapDetailMode = '';
+  let gapDefaultWorkTag = '업무';
+
+  function dateKey(date) {
+    return date.getFullYear() + '-' +
+      String(date.getMonth() + 1).padStart(2, '0') + '-' +
+      String(date.getDate()).padStart(2, '0');
+  }
+
+  function minuteOfDay(date) {
+    return date.getHours() * 60 + date.getMinutes();
+  }
+
+  function dateAtMinute(baseDate, minute) {
+    const d = new Date(baseDate);
+    d.setHours(Math.floor(minute / 60), minute % 60, 0, 0);
+    return d;
+  }
+
+  function getCurrentWorkWindow(now) {
+    const day = now.getDay();
+    if (day === 0 || day === 6) return null;
+    const currentMin = minuteOfDay(now);
+    const window = WORK_WINDOWS_MIN.find(w => currentMin >= w.start && currentMin < w.end);
+    if (!window) return null;
+    return {
+      start: dateAtMinute(now, window.start),
+      end: dateAtMinute(now, window.end),
+      startMin: window.start,
+      endMin: window.end
+    };
+  }
+
+  function parseTimeToDate(dateStr, timeStr) {
+    if (!dateStr || !timeStr || !timeStr.includes(':')) return null;
+    const [h, m] = timeStr.split(':').map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setHours(h, m, 0, 0);
+    return d;
+  }
+
+  function recordEndMs(record) {
+    const end = parseTimeToDate(getRecordDate(record), record.endTime || record.startTime);
+    return end ? end.getTime() : 0;
+  }
+
+  function isNonWorkRecord(record) {
+    const tag = record.tag || '';
+    const name = record.name || '';
+    return ['휴식', '식사', '딴짓', '이동'].includes(tag) ||
+      ['휴식', '식사', '딴짓'].includes(name);
+  }
+
+  function getLastWorkRecord() {
+    return records
+      .filter(r => !isNonWorkRecord(r))
+      .slice()
+      .sort((a, b) => recordEndMs(b) - recordEndMs(a))[0] || null;
+  }
+
+  function isAnyModalOpen() {
+    return Array.from(document.querySelectorAll('.manual-modal')).some(modal =>
+      getComputedStyle(modal).display !== 'none'
+    );
+  }
+
+  function getCurrentGap(now = new Date()) {
+    const workWindow = getCurrentWorkWindow(now);
+    if (!workWindow) return null;
+
+    const today = dateKey(now);
+    let latestEnd = workWindow.start;
+    for (const record of records) {
+      if (getRecordDate(record) !== today) continue;
+      const recStart = parseTimeToDate(today, record.startTime);
+      const recEnd = parseTimeToDate(today, record.endTime);
+      if (!recStart || !recEnd || recEnd <= recStart) continue;
+      if (recEnd <= workWindow.start || recStart >= now) continue;
+      const clippedEnd = new Date(Math.min(recEnd.getTime(), now.getTime(), workWindow.end.getTime()));
+      if (clippedEnd > latestEnd) latestEnd = clippedEnd;
+    }
+
+    const gapMs = now.getTime() - latestEnd.getTime();
+    if (gapMs < GAP_THRESHOLD_MIN * 60 * 1000) return null;
+    return {
+      start: latestEnd,
+      end: now,
+      key: `${today}|${formatHHMM(latestEnd)}|${workWindow.startMin}`,
+      minutes: Math.floor(gapMs / 60000)
+    };
+  }
+
+  function startGapMonitoring() {
+    if (gapCheckTimer) clearInterval(gapCheckTimer);
+    gapCheckTimer = setInterval(checkWorkGap, GAP_CHECK_INTERVAL_MS);
+    setTimeout(checkWorkGap, 1500);
+  }
+
+  function checkWorkGap() {
+    if (timerInterval || document.hidden || isAnyModalOpen()) return;
+    const gap = getCurrentGap();
+    if (!gap || gap.key === ignoredGapKey) return;
+    openGapPrompt(gap);
+  }
+
+  function openGapPrompt(gap) {
+    gapPromptRange = gap;
+    gapDetailMode = '';
+    document.getElementById('gapChoiceGrid').style.display = 'grid';
+    document.getElementById('gapDetailPanel').style.display = 'none';
+    document.getElementById('gapMessage').innerHTML =
+      `<strong>${formatHHMM(gap.start)}~${formatHHMM(gap.end)}</strong> 약 <strong>${gap.minutes}분</strong>이 비어있어요.<br>이 시간을 어떻게 처리할까요?`;
+    document.getElementById('gapModal').style.display = 'flex';
+  }
+
+  function closeGapPrompt() {
+    document.getElementById('gapModal').style.display = 'none';
+    gapDetailMode = '';
+  }
+
+  function backToGapChoices() {
+    gapDetailMode = '';
+    document.getElementById('gapChoiceGrid').style.display = 'grid';
+    document.getElementById('gapDetailPanel').style.display = 'none';
+  }
+
+  function chooseGapType(type) {
+    if (!gapPromptRange) return;
+    if (type === 'break') {
+      recordGapAs('휴식', '휴식');
+      return;
+    }
+    if (type === 'work') {
+      const last = getLastWorkRecord();
+      gapDefaultWorkTag = (last && last.tag) ? last.tag : '업무';
+      showGapDetail('work', '작업명', last ? last.name : '', '기본값은 이전 작업명입니다. 입력칸을 누르면 비워집니다.', '이 작업으로 시작');
+      return;
+    }
+    if (type === 'distraction') {
+      showGapDetail('distraction', '뭐 했나요?', '', '딴짓 분류로 공백 시간을 기록합니다.', '딴짓으로 기록');
+      return;
+    }
+    if (type === 'other') {
+      showGapDetail('other', '무엇을 했나요?', '', '기타 분류로 공백 시간을 기록합니다.', '기타로 기록');
+    }
+  }
+
+  function showGapDetail(mode, label, value, hint, buttonText) {
+    gapDetailMode = mode;
+    const input = document.getElementById('gapDetailInput');
+    input.value = value || '';
+    input.dataset.defaultValue = mode === 'work' ? (value || '') : '';
+    document.getElementById('gapDetailLabel').textContent = label;
+    document.getElementById('gapDetailHint').textContent = hint;
+    document.getElementById('gapDetailSubmitBtn').textContent = buttonText;
+    document.getElementById('gapChoiceGrid').style.display = 'none';
+    document.getElementById('gapDetailPanel').style.display = 'block';
+    setTimeout(() => {
+      if (mode === 'work') {
+        document.getElementById('gapDetailSubmitBtn').focus();
+      } else {
+        input.focus();
+      }
+    }, 50);
+  }
+
+  function clearGapDefaultName() {
+    if (gapDetailMode !== 'work') return;
+    const input = document.getElementById('gapDetailInput');
+    if (input.dataset.defaultValue && input.value === input.dataset.defaultValue) {
+      input.value = '';
+      input.dataset.defaultValue = '';
+    }
+  }
+
+  function submitGapDetail() {
+    if (!gapPromptRange) return;
+    const input = document.getElementById('gapDetailInput');
+    const name = input.value.trim();
+    if (!name) {
+      input.focus();
+      input.style.borderColor = '#F44336';
+      setTimeout(() => input.style.borderColor = '', 1200);
+      return;
+    }
+    if (gapDetailMode === 'work') {
+      startGapWorkTimer(name);
+    } else if (gapDetailMode === 'distraction') {
+      recordGapAs(name, '딴짓');
+    } else if (gapDetailMode === 'other') {
+      recordGapAs(name, '기타');
+    }
+  }
+
+  function ignoreGapPrompt() {
+    if (gapPromptRange) ignoredGapKey = gapPromptRange.key;
+    closeGapPrompt();
+  }
+
+  function getGapSubmitEnd() {
+    const now = new Date();
+    const currentWindow = getCurrentWorkWindow(now);
+    if (currentWindow && gapPromptRange &&
+        gapPromptRange.start >= currentWindow.start && now <= currentWindow.end) {
+      return now;
+    }
+    return gapPromptRange.end;
+  }
+
+  function recordGapAs(name, tag) {
+    if (!gapPromptRange) return;
+    const end = getGapSubmitEnd();
+    const duration = Math.floor((end - gapPromptRange.start) / 60000);
+    if (duration <= 0) { closeGapPrompt(); return; }
+    const record = {
+      id: Date.now(),
+      name,
+      tag,
+      startTime: formatHHMM(gapPromptRange.start),
+      endTime: formatHHMM(end),
+      duration,
+      date: dateKey(gapPromptRange.start)
+    };
+    records.unshift(record);
+    saveRecords();
+    applySortAndRender();
+    sendToSheet(record);
+    updateResumeButton();
+    closeGapPrompt();
+  }
+
+  function applyTimerTag(tag) {
+    selectedTag = tag || '';
+    manualTagSelected = !!selectedTag;
+    const label = document.getElementById('tagLabel');
+    const select = document.getElementById('tagSelect');
+    label.textContent = selectedTag || '분류';
+    select.classList.toggle('has-tag', !!selectedTag);
+    document.querySelectorAll('.tag-option').forEach(el => {
+      el.classList.toggle('selected', el.textContent.trim() === selectedTag);
+    });
+  }
+
+  function startGapWorkTimer(name) {
+    if (!gapPromptRange || timerInterval) return;
+    document.getElementById('nameInput').value = name;
+    applyTimerTag(gapDefaultWorkTag || '업무');
+    const gapStart = new Date(gapPromptRange.start);
+    closeGapPrompt();
+    startTimer({ startAt: gapStart });
+  }
+
   // --- 수동 기록 추가 ---
   function openManualAdd() {
     const modal = document.getElementById('manualModal');
@@ -2020,7 +2330,7 @@
     startTimer();
   }
 
-  function startTimer() {
+  function startTimer(options = {}) {
     const name = document.getElementById('nameInput').value.trim();
     if (!name) {
       document.getElementById('nameInput').focus();
@@ -2029,8 +2339,8 @@
       return;
     }
 
-    startTimestamp = new Date();
-    elapsed = 0;
+    startTimestamp = options.startAt instanceof Date ? new Date(options.startAt) : new Date();
+    elapsed = Math.max(0, Math.floor((Date.now() - startTimestamp.getTime()) / 1000));
     document.getElementById('btnStart').disabled = true;
     document.getElementById('btnTimer').disabled = true;
     document.getElementById('btnResume').disabled = true;
@@ -2048,6 +2358,7 @@
       elapsed = Math.floor((Date.now() - startTimestamp.getTime()) / 1000);
       renderStopwatch();
     }, 200);
+    renderStopwatch();
   }
 
   function startFromTodo(todoId) {
@@ -2954,6 +3265,7 @@
   renderTodoTab();
   renderRecords();
   updateResumeButton();
+  startGapMonitoring();
 
   // --- 타이머 복원 (앱 재시작 시) ---
   (function restoreTimer() {
