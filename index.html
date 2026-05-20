@@ -515,6 +515,24 @@
     line-height: 1;
   }
   .todo-add-btn:hover { opacity: 0.85; }
+  .todo-undo-btn {
+    width: 38px;
+    min-width: 38px;
+    font-size: 18px;
+    font-weight: 700;
+    border: none;
+    border-radius: 8px;
+    background: rgba(26,35,126,0.12);
+    color: #1A237E;
+    cursor: pointer;
+    transition: opacity 0.15s, background 0.15s;
+    line-height: 1;
+  }
+  .todo-undo-btn:hover:not(:disabled) { background: rgba(26,35,126,0.2); }
+  .todo-undo-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
 
   .todo-list {
     display: flex;
@@ -1109,6 +1127,7 @@
         <div class="todo-add-row">
           <input type="text" class="todo-add-input" id="todoInput" placeholder="할 일 추가..." onkeydown="if(event.key==='Enter')addTodo()">
           <button class="todo-add-btn" onclick="addTodo()">+</button>
+          <button class="todo-undo-btn" id="todoUndoBtn" onclick="undoLastCompletedTodo()" title="방금 완료한 할 일 되돌리기" disabled>↶</button>
         </div>
         <div class="todo-list" id="todoList"></div>
       </div>
@@ -2476,6 +2495,20 @@
     todoSyncTimer = setTimeout(() => syncTodosToSheet(), 1000);
   }
 
+  function getLastCompletedTodo() {
+    return todos
+      .filter(t => t.done && t.completedAt)
+      .sort((a, b) => Number(b.completedAt || 0) - Number(a.completedAt || 0))[0] || null;
+  }
+
+  function updateUndoCompleteButton() {
+    const btn = document.getElementById('todoUndoBtn');
+    if (!btn) return;
+    const last = getLastCompletedTodo();
+    btn.disabled = !last;
+    btn.title = last ? `방금 완료한 할 일 되돌리기: ${last.text}` : '되돌릴 완료 항목이 없습니다';
+  }
+
   function addTodo() {
     const input = document.getElementById('todoInput');
     const text = input.value.trim();
@@ -2493,6 +2526,16 @@
     if (!t) return;
     t.done = !t.done;
     t.completedAt = t.done ? Date.now() : null;
+    saveTodos();
+    renderTodos();
+    renderTodoTab();
+  }
+
+  function undoLastCompletedTodo() {
+    const last = getLastCompletedTodo();
+    if (!last) return;
+    last.done = false;
+    last.completedAt = null;
     saveTodos();
     renderTodos();
     renderTodoTab();
@@ -2547,6 +2590,7 @@
     const list = document.getElementById('todoList');
     const count = document.getElementById('todosCount');
     const todayStr = new Date().toISOString().slice(0, 10);
+    updateUndoCompleteButton();
 
     const active = todos.filter(t => {
       if (t.done) return false;
