@@ -2449,6 +2449,7 @@
       if (!t.quadrant) { t.quadrant = 'do'; changed = true; }
       if (t.isToday === undefined) { t.isToday = true; changed = true; }
       if (t.dueDate === undefined) { t.dueDate = null; changed = true; }
+      if (t.completedAt === undefined) { t.completedAt = null; changed = true; }
     });
     if (changed) localStorage.setItem('widgetTodos', JSON.stringify(todos));
   })();
@@ -2479,7 +2480,7 @@
     const input = document.getElementById('todoInput');
     const text = input.value.trim();
     if (!text) return;
-    todos.unshift({ id: Date.now(), text, done: false, quadrant: 'do', isToday: true, dueDate: null });
+    todos.unshift({ id: Date.now(), text, done: false, quadrant: 'do', isToday: true, dueDate: null, completedAt: null });
     saveTodos();
     renderTodos();
     renderTodoTab();
@@ -2491,6 +2492,7 @@
     const t = todos.find(t => t.id === id);
     if (!t) return;
     t.done = !t.done;
+    t.completedAt = t.done ? Date.now() : null;
     saveTodos();
     renderTodos();
     renderTodoTab();
@@ -2664,7 +2666,7 @@
     const input = document.getElementById('todayTodoInput');
     const text = input.value.trim();
     if (!text) return;
-    todos.unshift({ id: Date.now(), text, done: false, quadrant: 'do', isToday: true, dueDate: null });
+    todos.unshift({ id: Date.now(), text, done: false, quadrant: 'do', isToday: true, dueDate: null, completedAt: null });
     saveTodos();
     renderTodos();
     renderTodoTab();
@@ -2675,7 +2677,7 @@
   function addToQuadrant(quadrant, inputEl) {
     const text = inputEl.value.trim();
     if (!text) return;
-    todos.push({ id: Date.now(), text, done: false, quadrant, isToday: false });
+    todos.push({ id: Date.now(), text, done: false, quadrant, isToday: false, dueDate: null, completedAt: null });
     saveTodos();
     renderTodoTab();
     inputEl.value = '';
@@ -2694,7 +2696,15 @@
 
   function renderTodoTab() {
     const QUADRANT_LABELS = { do: '🔴', schedule: '🟡', delegate: '🟠', eliminate: '⚪' };
-    const doneTodos = todos.filter(t => t.done);
+    const doneTodos = todos
+      .map((todo, index) => ({ todo, index }))
+      .filter(item => item.todo.done)
+      .sort((a, b) => {
+        const aCompleted = Number(a.todo.completedAt || 0);
+        const bCompleted = Number(b.todo.completedAt || 0);
+        return bCompleted - aCompleted || a.index - b.index;
+      })
+      .map(item => item.todo);
 
     // 오늘 할 일 (미완료만)
     const todayActive = todos.filter(t => t.isToday && !t.done);
@@ -2883,7 +2893,8 @@
             isToday: !!t.isToday,
             done: !!t.done,
             goalId: t.goalId || null,
-            dueDate: t.dueDate || null
+            dueDate: t.dueDate || null,
+            completedAt: t.completedAt || null
           }))
         })
       });
