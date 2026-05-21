@@ -1662,6 +1662,7 @@
         records = mergeWithPending(sheetRecords);
         applySortAndRender();
         updateResumeButton();
+        setTimeout(checkWorkGap, 0);
         const pc = pendingOps.length;
         if (status) {
           status.textContent = pc > 0
@@ -1674,6 +1675,7 @@
           await retrySendPendingOps();
           records = mergeWithPending([]);
           applySortAndRender();
+          setTimeout(checkWorkGap, 0);
         }
         if (status) { status.textContent = '기록 없음'; status.style.color = '#999'; }
       }
@@ -1913,8 +1915,7 @@
   const GAP_THRESHOLD_MIN = 15;
   const GAP_CHECK_INTERVAL_MS = 60000;
   const WORK_WINDOWS_MIN = [
-    { start: 11 * 60, end: 13 * 60 },
-    { start: 14 * 60, end: 19 * 60 }
+    { start: 11 * 60, end: 19 * 60 }
   ];
   let gapCheckTimer = null;
   let gapPromptRange = null;
@@ -2034,6 +2035,10 @@
       `<strong>${formatHHMM(gap.start)}~${formatHHMM(gap.end)}</strong> 약 <strong>${gap.minutes}분</strong>이 비어있어요.<br>이 시간을 어떻게 처리할까요?`;
     document.getElementById('gapModal').style.display = 'flex';
   }
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) setTimeout(checkWorkGap, 250);
+  });
 
   function closeGapPrompt() {
     document.getElementById('gapModal').style.display = 'none';
