@@ -1097,6 +1097,198 @@
   }
   .memo-textarea:focus { border-color: #1A237E; }
   .memo-textarea::placeholder { color: #BBB; }
+
+  /* 반응형 보정 */
+  .tab-bar-wrap,
+  .tab-bar,
+  .input-row,
+  .buttons,
+  .todo-add-row,
+  .settings-sync-row,
+  .manual-field-row,
+  .edit-row {
+    min-width: 0;
+  }
+
+  .tab-bar {
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 1px;
+  }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  .tab-btn { flex: 0 0 auto; }
+
+  .name-input,
+  .todo-add-input,
+  .eq-add-input,
+  .settings-input,
+  .edit-input,
+  .retro-textarea,
+  .memo-textarea {
+    min-width: 0;
+  }
+
+  @media (min-width: 700px) {
+    body {
+      align-items: center;
+      padding: 16px;
+    }
+    .container {
+      max-width: 720px;
+      height: min(100%, 820px);
+    }
+    .card {
+      min-height: 0;
+      height: 100%;
+      border-radius: 16px;
+      box-shadow: 0 12px 36px rgba(26,35,126,0.12);
+    }
+  }
+
+  @media (max-width: 420px) {
+    .card {
+      padding: 16px 14px max(14px, env(safe-area-inset-bottom));
+      padding-top: max(16px, env(safe-area-inset-top));
+    }
+    .tab-bar-wrap {
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .app-title {
+      flex: 0 0 auto;
+      padding-top: 4px;
+      font-size: 14px;
+    }
+    .tab-bar {
+      gap: 3px;
+      flex: 1;
+    }
+    .tab-btn {
+      padding: 5px 8px;
+      font-size: 11px;
+    }
+    .input-row { gap: 6px; }
+    .name-input {
+      padding: 12px;
+      font-size: 15px;
+    }
+    .tag-select {
+      min-width: 66px;
+      padding: 0 8px;
+      font-size: 13px;
+    }
+    .buttons {
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .btn {
+      min-height: 44px;
+      padding: 11px 0;
+      font-size: 15px;
+    }
+    .stopwatch {
+      margin-top: 14px;
+      font-size: 40px;
+      letter-spacing: 1px;
+    }
+    .todo-add-row { gap: 5px; }
+    .todo-add-btn,
+    .todo-undo-btn {
+      min-width: 40px;
+      height: 40px;
+      padding: 0 10px;
+    }
+    .todo-item,
+    .eq-item,
+    .todo-done-item {
+      align-items: flex-start;
+    }
+    .todo-text,
+    .eq-item .eq-text,
+    .todo-done-item .eq-text {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      line-height: 1.35;
+    }
+    .record-sort-bar { display: none; }
+    .record-item {
+      align-items: flex-start;
+      gap: 4px 6px;
+      padding: 10px;
+    }
+    .record-date,
+    .record-time,
+    .record-duration,
+    .record-tag {
+      width: auto;
+      margin-right: 0;
+    }
+    .record-name {
+      flex-basis: 100%;
+      order: 5;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      line-height: 1.35;
+      margin-top: 2px;
+    }
+    .settings-sync-row,
+    .manual-field-row,
+    .edit-row,
+    .edit-buttons {
+      flex-wrap: wrap;
+    }
+    .edit-label {
+      flex-basis: 100%;
+    }
+    .edit-time-input {
+      flex: 1;
+      min-width: 76px;
+    }
+    .manual-modal {
+      align-items: flex-end;
+      padding: 12px;
+    }
+    .manual-modal-content {
+      width: 100%;
+      max-width: 420px;
+      max-height: calc(100dvh - 24px);
+      overflow-y: auto;
+      padding: 16px;
+      border-radius: 12px;
+    }
+  }
+
+  @media (max-width: 320px) {
+    .input-row {
+      flex-direction: column;
+    }
+    .tag-wrapper,
+    .tag-select {
+      width: 100%;
+    }
+    .buttons,
+    .todo-add-row,
+    .stats-range-bar {
+      flex-wrap: wrap;
+    }
+    .btn {
+      flex: 1 1 calc(50% - 4px);
+    }
+    .btn-timer {
+      flex-basis: 100%;
+    }
+    .todo-add-input {
+      flex-basis: 100%;
+    }
+    .todo-add-btn,
+    .todo-undo-btn,
+    .stats-range-btn {
+      flex: 1 1 0;
+    }
+    .eisenhower-grid {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
 </head>
 <body>
