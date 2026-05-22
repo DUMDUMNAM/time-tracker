@@ -1098,6 +1098,122 @@
   .memo-textarea:focus { border-color: #1A237E; }
   .memo-textarea::placeholder { color: #BBB; }
 
+  /* 글자 크기 스케일 */
+  :root { --font-scale: 1; }
+  .font-scale-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    margin-bottom: 8px;
+  }
+  .font-scale-label {
+    font-size: calc(11px * var(--font-scale));
+    color: rgba(0,0,0,0.4);
+    font-weight: 600;
+    min-width: 40px;
+  }
+  .font-scale-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(0,0,0,0.12);
+    outline: none;
+  }
+  .font-scale-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #1A237E;
+    cursor: pointer;
+  }
+  .font-scale-value {
+    font-size: calc(11px * var(--font-scale));
+    color: rgba(0,0,0,0.4);
+    min-width: 38px;
+    text-align: right;
+  }
+  .tab-btn,
+  .todo-start,
+  .eq-count,
+  .eq-sublabel,
+  .todo-quadrant-tag {
+    font-size: calc(10px * var(--font-scale));
+  }
+  .stats-total-label,
+  .stats-section-title,
+  .settings-label,
+  .settings-sync-status,
+  .settings-guide,
+  .todos-count,
+  .record-date,
+  .record-retro,
+  .manual-field label,
+  .gap-hint {
+    font-size: calc(11px * var(--font-scale));
+  }
+  .stats-range-btn,
+  .stats-rank-time,
+  .settings-field-label,
+  .settings-guide-title,
+  .manual-add-btn,
+  .manual-btn,
+  .eq-header,
+  .eq-add-input,
+  .todo-edit-btn,
+  .edit-label {
+    font-size: calc(12px * var(--font-scale));
+  }
+  .stats-rank-label,
+  .settings-sync-btn,
+  .btn-resume,
+  .todos-title,
+  .eq-item,
+  .todo-done-title,
+  .todo-done-item,
+  .record-item,
+  .edit-btn,
+  .retro-textarea,
+  .memo-textarea,
+  .empty-msg {
+    font-size: calc(13px * var(--font-scale));
+  }
+  .app-title,
+  .settings-save-btn,
+  .settings-input,
+  .tag-select,
+  .tag-option,
+  .todo-add-input,
+  .todo-item,
+  .todo-today-title,
+  .todo-storage-title,
+  .edit-input,
+  .edit-select,
+  .todo-delete {
+    font-size: calc(14px * var(--font-scale));
+  }
+  .manual-modal-title {
+    font-size: calc(15px * var(--font-scale));
+  }
+  .name-input,
+  .btn {
+    font-size: calc(16px * var(--font-scale));
+  }
+  .todo-add-btn,
+  .todo-undo-btn {
+    font-size: calc(18px * var(--font-scale));
+  }
+  .stats-total-value {
+    font-size: calc(28px * var(--font-scale));
+  }
+  .stopwatch {
+    font-size: calc(48px * var(--font-scale));
+  }
+
   /* 반응형 보정 */
   .tab-bar-wrap,
   .tab-bar,
@@ -1569,6 +1685,15 @@
     <div class="tab-content" id="tab-settings">
       <div class="settings-view">
         <div class="settings-section">
+          <div class="settings-label">글자 크기</div>
+          <div class="font-scale-bar">
+            <span class="font-scale-label">크기</span>
+            <input type="range" class="font-scale-slider" id="fontScaleSlider" min="90" max="150" step="5" value="100">
+            <span class="font-scale-value" id="fontScaleValue">100%</span>
+          </div>
+        </div>
+
+        <div class="settings-section">
           <div class="settings-label">Google Sheets 연동</div>
           <div class="settings-field">
             <label class="settings-field-label">스프레드시트 URL</label>
@@ -1783,6 +1908,27 @@
 
   document.getElementById('settingSheetUrl').value = SHEET_URL;
   document.getElementById('settingScriptUrl').value = APPS_SCRIPT_URL;
+
+  // --- 글자 크기 ---
+  const fontScaleSlider = document.getElementById('fontScaleSlider');
+  const fontScaleValueEl = document.getElementById('fontScaleValue');
+  const savedFontScale = localStorage.getItem('settingFontScale');
+  if (savedFontScale) fontScaleSlider.value = savedFontScale;
+  applyFontScale();
+
+  fontScaleSlider.addEventListener('input', () => {
+    applyFontScale();
+    localStorage.setItem('settingFontScale', fontScaleSlider.value);
+  });
+
+  function applyFontScale() {
+    let value = Number(fontScaleSlider.value || 100);
+    if (!Number.isFinite(value)) value = 100;
+    value = Math.min(150, Math.max(90, value));
+    fontScaleSlider.value = String(value);
+    document.documentElement.style.setProperty('--font-scale', (value / 100).toFixed(2));
+    fontScaleValueEl.textContent = value + '%';
+  }
 
   function saveSheetSettings() {
     SHEET_URL = document.getElementById('settingSheetUrl').value.trim();
