@@ -827,11 +827,13 @@
   .manual-modal {
     position: fixed;
     inset: 0;
+    padding: 14px;
     background: rgba(0,0,0,0.5);
     z-index: 1000;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
+    overflow: hidden;
   }
   .manual-modal-content {
     background: #fff;
@@ -839,6 +841,8 @@
     border-radius: 12px;
     width: 90%;
     max-width: 320px;
+    max-height: calc(100dvh - 28px);
+    overflow-y: auto;
     box-shadow: 0 8px 32px rgba(0,0,0,0.25);
   }
   .manual-modal-title {
@@ -877,6 +881,11 @@
     gap: 8px;
     margin-top: 16px;
     justify-content: flex-end;
+    position: sticky;
+    bottom: -18px;
+    padding-top: 8px;
+    padding-bottom: 2px;
+    background: linear-gradient(180deg, rgba(255,255,255,0), #fff 40%);
   }
   .manual-btn {
     padding: 7px 16px;
@@ -1367,7 +1376,6 @@
       min-width: 76px;
     }
     .manual-modal {
-      align-items: flex-end;
       padding: 12px;
     }
     .manual-modal-content {
