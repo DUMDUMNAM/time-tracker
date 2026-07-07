@@ -1742,6 +1742,10 @@
             <button class="settings-sync-btn" onclick="loadFromSheet()">시트에서 기록 불러오기</button>
             <span class="settings-sync-status" id="settingsSyncStatus"></span>
           </div>
+          <div id="syncGuardBanner" style="display:none;margin-top:8px;padding:8px;border:1px solid #FFA726;border-radius:6px;background:rgba(255,167,38,0.1);">
+            <div id="syncGuardBannerMsg" style="font-size:11px;color:#FFA726;line-height:1.4;"></div>
+            <button class="settings-sync-btn" style="margin-top:6px;" onclick="forceSheetReplace()">시트 데이터로 교체</button>
+          </div>
           <div class="settings-guide">
             <div class="settings-guide-title">연동 방법</div>
             <ol>
@@ -1755,6 +1759,21 @@
                 </ol>
               </li>
             </ol>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-label">백업</div>
+          <div class="settings-sync-row">
+            <button class="settings-sync-btn" onclick="exportBackup()">JSON 내보내기</button>
+            <button class="settings-sync-btn" onclick="document.getElementById('importBackupInput').click()">JSON 가져오기</button>
+          </div>
+          <input type="file" id="importBackupInput" accept=".json,application/json" style="display:none;" onchange="handleImportFile(this)">
+          <div id="importPauseBanner" style="display:none;font-size:11px;color:#FFA726;line-height:1.4;margin-top:6px;">
+            가져오기 완료 — 자동 동기화를 10분간 일시정지했습니다. 가져온 데이터가 시트와 다르면 시트를 정리하거나 강제 교체를 선택하세요.
+          </div>
+          <div style="font-size:11px;color:#888;line-height:1.4;margin-top:4px;">
+            내보내기: 기록·할 일·설정 전체를 JSON 파일로 저장합니다. 가져오기: 파일 데이터로 로컬을 교체합니다 (교체 전 세이프티 스냅샷 자동 저장).
           </div>
         </div>
       </div>
@@ -2030,6 +2049,20 @@
             retro: r.retro || ''
           };
         });
+        // 1-B. 급감 가드: 시트 기록이 로컬의 절반 미만이면 교체 중단 (강제 교체 시 1회 통과)
+        if (!forceReplaceRequested && records.length >= 10 && sheetRecords.length < records.length * 0.5) {
+          syncShrinkGuard = { local: records.length, sheet: sheetRecords.length };
+          updateSyncGuardBanner();
+          if (status) {
+            status.textContent = `시트 기록이 크게 줄었어요 (로컬 ${records.length} → 시트 ${sheetRecords.length}). 설정에서 확인하세요.`;
+            status.style.color = '#FFA726';
+          }
+          return;
+        }
+        forceReplaceRequested = false;
+        if (syncShrinkGuard) { syncShrinkGuard = null; updateSyncGuardBanner(); }
+        // 1-C. 하루 1회 첫 성공 동기화 직전 세이프티 스냅샷 (시트발 오염 대비 최후 복원선)
+        saveSyncSnapshot(false);
         reconcilePendingOps(sheetRecords);
         if (pendingOps.length > 0) await retrySendPendingOps();
         records = mergeWithPending(sheetRecords);
@@ -2044,13 +2077,9 @@
           status.style.color = pc > 0 ? '#FFA726' : '#4CAF50';
         }
       } else {
-        if (pendingOps.length > 0) {
-          await retrySendPendingOps();
-          records = mergeWithPending([]);
-          applySortAndRender();
-          setTimeout(checkWorkGap, 0);
-        }
-        if (status) { status.textContent = '기록 없음'; status.style.color = '#999'; }
+        // 1-A. 비정상 응답: 로컬 records는 절대 재할당하지 않는다 (pendingOps 재전송만 시도)
+        if (pendingOps.length > 0) await retrySendPendingOps();
+        if (status) { status.textContent = '동기화 응답 이상 — 로컬 유지'; status.style.color = '#FFA726'; }
       }
     } catch (err) {
       console.error('Sync error:', err);
@@ -2225,6 +2254,183 @@
     return merged;
   }
 
+  // --- 데이터 세이프티 (급감 가드 / 세이프티 스냅샷 / 백업) ---
+  let syncShrinkGuard = null;          // {local, sheet} — 급감 가드 발동 상태 (메모리 전용, 재시작 시 재평가)
+  let forceReplaceRequested = false;   // [시트 데이터로 교체] 버튼: 다음 동기화 1회 가드 통과
+  let autoSyncPausedUntil = 0;         // 가져오기 직후 자동 동기화 일시정지 시한 (epoch ms)
+
+  function saveSyncSnapshot(force) {
+    try {
+      const d = new Date();
+      const today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      if (!force) {
+        let prev = null;
+        try { prev = JSON.parse(localStorage.getItem('lastSyncSnapshot') || 'null'); } catch (_) {}
+        if (prev && prev.date === today) return;
+      }
+      localStorage.setItem('lastSyncSnapshot', JSON.stringify({ date: today, records: records }));
+    } catch (err) {
+      console.error('Safety snapshot failed:', err);
+    }
+  }
+
+  function updateSyncGuardBanner() {
+    const banner = document.getElementById('syncGuardBanner');
+    if (!banner) return;
+    if (syncShrinkGuard) {
+      const msg = document.getElementById('syncGuardBannerMsg');
+      if (msg) msg.textContent = `시트 기록이 크게 줄었어요 (로컬 ${syncShrinkGuard.local}건 → 시트 ${syncShrinkGuard.sheet}건). 로컬 데이터를 유지하고 있습니다. 시트가 맞다면 아래 버튼으로 교체하세요.`;
+      banner.style.display = 'block';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  function forceSheetReplace() {
+    if (!confirm('로컬 기록을 시트 데이터로 교체합니다. 교체 전 현재 로컬 상태는 세이프티 스냅샷에 저장됩니다. 계속할까요?')) return;
+    saveSyncSnapshot(true);
+    forceReplaceRequested = true;
+    loadFromSheet().catch(() => {});
+  }
+
+  // --- 백업: 전체 상태 수집 / JSON 내보내기·가져오기 ---
+  const BACKUP_SETTING_KEYS = [
+    'settingSheetUrl', 'settingScriptUrl', 'widgetOpacity', 'settingFontScale',
+    'soundEnabled', 'soundVolume', 'pomoEnabled', 'pomoWorkMin', 'pomoBreakMin',
+    'pomoLongBreakMin', 'longWorkEnabled', 'longWorkMinutes', 'sortKey', 'sortAsc', 'trendDays'
+  ];
+
+  function collectFullState() {
+    const settings = {};
+    for (const key of BACKUP_SETTING_KEYS) {
+      const val = localStorage.getItem(key);
+      if (val !== null) settings[key] = val;
+    }
+    let timerStateVal = null;
+    try { timerStateVal = JSON.parse(localStorage.getItem('timerState') || 'null'); } catch (_) {}
+    let goalsVal = [];
+    try { goalsVal = JSON.parse(localStorage.getItem('widgetGoals') || '[]'); } catch (_) {}
+    return {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      timeRecords: records,
+      widgetTodos: todos,
+      widgetGoals: goalsVal,
+      widgetMemo: localStorage.getItem('widgetMemo') || '',
+      timerState: timerStateVal,
+      pendingOps: pendingOps,
+      settings: settings
+    };
+  }
+
+  function exportBackup() {
+    try {
+      const d = new Date();
+      const stamp = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+      const blob = new Blob([JSON.stringify(collectFullState(), null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'time-tracker-backup-' + stamp + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      alert('내보내기 실패: ' + (err.message || err));
+    }
+  }
+
+  function handleImportFile(input) {
+    const file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => { applyImportedState(String(reader.result)); };
+    reader.onerror = () => { alert('가져오기 실패: 파일을 읽을 수 없습니다.'); };
+    reader.readAsText(file);
+  }
+
+  function applyImportedState(text) {
+    let state = null;
+    try { state = JSON.parse(text); } catch (err) {
+      alert('가져오기 실패: JSON 파싱 오류 — ' + (err.message || err));
+      return false;
+    }
+    if (!state || typeof state !== 'object' || state.version !== 1 || !Array.isArray(state.timeRecords)) {
+      alert('가져오기 실패: 올바른 백업 파일이 아닙니다 (version 1, timeRecords 배열 필요).');
+      return false;
+    }
+    if (!confirm(`현재 기록 ${records.length}건을 파일의 ${state.timeRecords.length}건으로 교체합니다. 계속할까요?`)) return false;
+
+    // 교체 전 현재 상태를 세이프티 스냅샷에 백업
+    saveSyncSnapshot(true);
+
+    records = state.timeRecords;
+    saveRecords();
+    if (Array.isArray(state.pendingOps)) {
+      pendingOps = state.pendingOps;
+      savePendingOps();
+    }
+    if (Array.isArray(state.widgetTodos)) {
+      todos = state.widgetTodos;
+      localStorage.setItem('widgetTodos', JSON.stringify(todos));
+    }
+    if (Array.isArray(state.widgetGoals)) {
+      localStorage.setItem('widgetGoals', JSON.stringify(state.widgetGoals));
+      if (typeof renderGoals === 'function') { goals = state.widgetGoals; }
+    }
+    if (typeof state.widgetMemo === 'string') {
+      localStorage.setItem('widgetMemo', state.widgetMemo);
+      const memoEl = document.getElementById('memoTextarea');
+      if (memoEl) memoEl.value = state.widgetMemo;
+    }
+    if (state.timerState && state.timerState.startTimestamp) {
+      localStorage.setItem('timerState', JSON.stringify(state.timerState));
+    }
+    if (state.settings && typeof state.settings === 'object') {
+      for (const key of BACKUP_SETTING_KEYS) {
+        if (typeof state.settings[key] === 'string') localStorage.setItem(key, state.settings[key]);
+      }
+      if (typeof state.settings.settingSheetUrl === 'string') {
+        SHEET_URL = state.settings.settingSheetUrl;
+        const el = document.getElementById('settingSheetUrl');
+        if (el) el.value = SHEET_URL;
+      }
+      if (typeof state.settings.settingScriptUrl === 'string') {
+        APPS_SCRIPT_URL = state.settings.settingScriptUrl;
+        const el2 = document.getElementById('settingScriptUrl');
+        if (el2) el2.value = APPS_SCRIPT_URL;
+      }
+    }
+
+    // 전체 재렌더
+    applySortAndRender();
+    renderTodos();
+    renderTodoTab();
+    if (typeof renderGoals === 'function') renderGoals();
+    updateResumeButton();
+
+    // 다음 자동 동기화가 시트로 덮지 않도록 10분 일시정지 + 안내 배너
+    autoSyncPausedUntil = Date.now() + 10 * 60 * 1000;
+    showImportPauseBanner();
+    alert(`가져오기 완료 — 기록 ${records.length}건 복원. 자동 동기화를 10분간 일시정지했습니다.`);
+    return true;
+  }
+
+  function showImportPauseBanner() {
+    const el = document.getElementById('importPauseBanner');
+    if (!el) return;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 10 * 60 * 1000);
+  }
+
+  function openBackupsFolder() {
+    if (window.electronAPI && window.electronAPI.openBackupsFolder) {
+      window.electronAPI.openBackupsFolder();
+    }
+  }
+
   async function retrySendPendingOps() {
     for (const op of [...pendingOps]) {
       try {
@@ -2280,6 +2486,7 @@
     if (autoSyncTimer) clearInterval(autoSyncTimer);
     autoSyncTimer = setInterval(() => {
       if (!APPS_SCRIPT_URL || isSyncing) return;
+      if (Date.now() < autoSyncPausedUntil) return; // 가져오기 직후 일시정지
       loadFromSheet().catch(() => {});
     }, 60000);
   }
