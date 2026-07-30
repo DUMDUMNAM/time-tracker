@@ -1529,7 +1529,19 @@
           <div class="todo-storage-title">
             할 일 저장소
             <span class="todo-sync-dot" id="todoSyncDot" title="백업 상태"></span>
+            <button class="manual-add-btn" style="margin-left:auto;" onclick="toggleProjAddRow()">+ 프로젝트</button>
           </div>
+          <div class="todo-add-row" id="projAddRow" style="display:none;margin-top:6px;">
+            <input type="text" class="todo-add-input" id="projAddInput" placeholder="새 프로젝트 이름" onkeydown="if(event.key==='Enter')addTodoProject()">
+            <button class="todo-add-btn" onclick="addTodoProject()">+</button>
+          </div>
+          <div class="todo-proj-section" data-proj="">
+            <div class="todo-done-header" onclick="toggleProjSection(this)">
+              <span class="todos-toggle" id="projToggleBase" style="font-size:10px;color:#999;">▼</span>
+              <span class="todo-done-title">기본</span>
+              <span class="todo-done-count" id="projCountBase"></span>
+            </div>
+            <div id="projBodyBase">
           <div class="eisenhower-grid" style="margin-top:8px;">
             <div class="eq-cell" data-q="do">
               <div class="eq-header"><span class="eq-badge"></span><span class="eq-label">Do</span><span class="eq-sublabel">긴급 + 중요</span><span class="eq-count" id="eqCount-do"></span></div>
@@ -1552,6 +1564,9 @@
               <div class="eq-add-row"><input type="text" class="eq-add-input" placeholder="추가..." onkeydown="if(event.key==='Enter')addToQuadrant('eliminate',this)"><button class="eq-add-btn" onclick="addToQuadrant('eliminate',this.previousElementSibling)">+</button></div>
             </div>
           </div>
+            </div>
+          </div>
+          <div id="todoProjectSections"></div>
         </div>
         <div class="todo-done-section">
           <div class="todo-done-header" onclick="toggleDoneSection()">
@@ -1665,6 +1680,12 @@
         <div class="manual-field">
           <label>내용</label>
           <input type="text" id="todoEditText">
+        </div>
+        <div class="manual-field">
+          <label>프로젝트</label>
+          <select id="todoEditProject">
+            <option value="">기본</option>
+          </select>
         </div>
         <div class="manual-field">
           <label>분면</label>
@@ -3363,6 +3384,26 @@
   let todos = JSON.parse(localStorage.getItem('widgetTodos') || '[]');
   let todosCollapsed = false;
 
+  // --- 할 일 저장소 프로젝트 (additive: 기존 todos는 건드리지 않고 읽을 때만 t.project || '') ---
+  let todoProjects = JSON.parse(localStorage.getItem('todoProjects') || '[]');
+  let todoProjCollapsed = JSON.parse(localStorage.getItem('todoProjCollapsed') || '{}');
+  function projOf(t) { return t.project || ''; }
+  function saveTodoProjects() {
+    localStorage.setItem('todoProjects', JSON.stringify(todoProjects));
+    localStorage.setItem('todoProjCollapsed', JSON.stringify(todoProjCollapsed));
+  }
+  // 목록 + todos에만 존재하는 project 값의 합집합 (목록-데이터 불일치로 항목이 숨지 않게)
+  function allTodoProjects() {
+    const known = new Set(todoProjects);
+    const extras = [];
+    todos.forEach(t => {
+      const p = projOf(t);
+      if (p && !known.has(p) && !extras.includes(p)) extras.push(p);
+    });
+    return todoProjects.concat(extras);
+  }
+  function attrEscape(s) { return escapeHtml(s).replace(/"/g, '&quot;'); }
+
   // 마이그레이션: 기존 할 일에 누락 필드 추가
   (function migrateTodos() {
     let changed = false;
@@ -3452,6 +3493,10 @@
     if (!t) return;
     editingTodoId = todoId;
     document.getElementById('todoEditText').value = t.text;
+    const projSel = document.getElementById('todoEditProject');
+    projSel.innerHTML = '<option value="">기본</option>' +
+      allTodoProjects().map(p => `<option value="${attrEscape(p)}">${escapeHtml(p)}</option>`).join('');
+    projSel.value = projOf(t);
     document.getElementById('todoEditQuadrant').value = t.quadrant || 'do';
     document.getElementById('todoEditDueDate').value = t.dueDate || '';
     document.getElementById('todoEditIsToday').checked = !!t.isToday;
@@ -3474,6 +3519,7 @@
     t.quadrant = document.getElementById('todoEditQuadrant').value || 'do';
     t.dueDate = document.getElementById('todoEditDueDate').value || null;
     t.isToday = document.getElementById('todoEditIsToday').checked;
+    t.project = document.getElementById('todoEditProject').value;
     saveTodos();
     renderTodos();
     renderTodoTab();
@@ -3622,14 +3668,127 @@
     input.focus();
   }
 
-  function addToQuadrant(quadrant, inputEl) {
+  function addToQuadrant(quadrant, inputEl, proj) {
     const text = inputEl.value.trim();
     if (!text) return;
-    todos.push({ id: Date.now(), text, done: false, quadrant, isToday: false, dueDate: null, completedAt: null });
+    todos.push({ id: Date.now(), text, done: false, quadrant, isToday: false, dueDate: null, completedAt: null, project: proj || '' });
     saveTodos();
     renderTodoTab();
     inputEl.value = '';
     inputEl.focus();
+  }
+
+  // 프로젝트 섹션 내 "추가..." 입력 — 섹션의 project 소속으로 추가
+  function addToQuadrantEl(inputEl) {
+    const sec = inputEl.closest('.todo-proj-section');
+    addToQuadrant(inputEl.dataset.q, inputEl, sec ? (sec.dataset.proj || '') : '');
+  }
+
+  function toggleProjAddRow() {
+    const row = document.getElementById('projAddRow');
+    const show = row.style.display === 'none';
+    row.style.display = show ? 'flex' : 'none';
+    if (show) document.getElementById('projAddInput').focus();
+  }
+
+  function addTodoProject() {
+    const input = document.getElementById('projAddInput');
+    const name = input.value.trim();
+    if (!name) { alert('프로젝트 이름을 입력해주세요.'); return; }
+    if (name === '기본' || allTodoProjects().includes(name)) { alert('이미 있는 이름입니다.'); return; }
+    todoProjects.push(name);
+    saveTodoProjects();
+    input.value = '';
+    renderTodoTab();
+  }
+
+  function projFromHeaderEl(el) {
+    const sec = el.closest('.todo-proj-section');
+    return sec ? (sec.dataset.proj || '') : '';
+  }
+
+  function toggleProjSection(headerEl) {
+    const p = projFromHeaderEl(headerEl);
+    todoProjCollapsed[p] = !todoProjCollapsed[p];
+    saveTodoProjects();
+    renderTodoTab();
+  }
+
+  function renameTodoProject(btn) {
+    const oldName = projFromHeaderEl(btn);
+    if (!oldName) return;
+    const name = (prompt('새 프로젝트 이름', oldName) || '').trim();
+    if (!name || name === oldName) return;
+    if (name === '기본' || allTodoProjects().includes(name)) { alert('이미 있는 이름입니다.'); return; }
+    const idx = todoProjects.indexOf(oldName);
+    if (idx >= 0) todoProjects[idx] = name; else todoProjects.push(name);
+    if (todoProjCollapsed[oldName] !== undefined) {
+      todoProjCollapsed[name] = todoProjCollapsed[oldName];
+      delete todoProjCollapsed[oldName];
+    }
+    todos.forEach(t => { if (projOf(t) === oldName) t.project = name; });
+    saveTodoProjects();
+    saveTodos();
+    renderTodoTab();
+  }
+
+  function deleteTodoProject(btn) {
+    const name = projFromHeaderEl(btn);
+    if (!name) return;
+    const n = todos.filter(t => projOf(t) === name).length;
+    if (!confirm(`"${name}" 프로젝트를 삭제할까요?\n항목 ${n}개는 삭제되지 않고 "기본"으로 이동합니다.`)) return;
+    todoProjects = todoProjects.filter(p => p !== name);
+    delete todoProjCollapsed[name];
+    todos.forEach(t => { if (projOf(t) === name) t.project = ''; });
+    saveTodoProjects();
+    saveTodos();
+    renderTodoTab();
+  }
+
+  function renderProjectSections() {
+    const EQ_QUADS = [
+      { q: 'do', label: 'Do', sub: '긴급 + 중요' },
+      { q: 'schedule', label: 'Schedule', sub: '중요' },
+      { q: 'delegate', label: 'Delegate', sub: '긴급' },
+      { q: 'eliminate', label: 'Eliminate', sub: '나중에' },
+    ];
+    // "기본" 섹션(정적 마크업): 헤더 카운트 + 접힘 상태 반영
+    const baseActive = todos.filter(t => !t.done && !t.isToday && !projOf(t));
+    const baseCount = document.getElementById('projCountBase');
+    if (baseCount) baseCount.textContent = baseActive.length > 0 ? `(${baseActive.length})` : '';
+    const baseBody = document.getElementById('projBodyBase');
+    if (baseBody) baseBody.style.display = todoProjCollapsed[''] ? 'none' : '';
+    const baseToggle = document.getElementById('projToggleBase');
+    if (baseToggle) baseToggle.textContent = todoProjCollapsed[''] ? '▶' : '▼';
+
+    const container = document.getElementById('todoProjectSections');
+    if (!container) return;
+    container.innerHTML = allTodoProjects().map(p => {
+      const secTodos = todos.filter(t => !t.done && !t.isToday && projOf(t) === p);
+      const collapsed = !!todoProjCollapsed[p];
+      const grid = EQ_QUADS.map(({ q, label, sub }) => {
+        const qTodos = secTodos.filter(t => t.quadrant === q);
+        return `
+            <div class="eq-cell" data-q="${q}">
+              <div class="eq-header"><span class="eq-badge"></span><span class="eq-label">${label}</span><span class="eq-sublabel">${sub}</span><span class="eq-count">${qTodos.length > 0 ? qTodos.length : ''}</span></div>
+              <div class="eq-list">${qTodos.map(t => eqItemHtml(t)).join('')}</div>
+              <div class="eq-add-row"><input type="text" class="eq-add-input" data-q="${q}" placeholder="추가..." onkeydown="if(event.key==='Enter')addToQuadrantEl(this)"><button class="eq-add-btn" onclick="addToQuadrantEl(this.previousElementSibling)">+</button></div>
+            </div>`;
+      }).join('');
+      return `
+        <div class="todo-proj-section" data-proj="${attrEscape(p)}">
+          <div class="todo-done-header" onclick="toggleProjSection(this)">
+            <span class="todos-toggle">${collapsed ? '▶' : '▼'}</span>
+            <span class="todo-done-title">${escapeHtml(p)}</span>
+            <span class="todo-done-count">${secTodos.length > 0 ? `(${secTodos.length})` : ''}</span>
+            <button class="todo-done-clear" onclick="event.stopPropagation(); renameTodoProject(this)" title="이름 변경">✏</button>
+            <button class="todo-done-clear" onclick="event.stopPropagation(); deleteTodoProject(this)" title="삭제 (항목은 기본으로 이동)">🗑</button>
+          </div>
+          <div${collapsed ? ' style="display:none"' : ''}>
+            <div class="eisenhower-grid" style="margin-top:8px;">${grid}</div>
+          </div>
+        </div>`;
+    }).join('');
   }
 
   function clearDoneTodos() {
@@ -3640,6 +3799,17 @@
     saveTodos();
     renderTodos();
     renderTodoTab();
+  }
+
+  // 저장소 분면 아이템 HTML (기본 그리드 + 프로젝트 섹션 공용)
+  function eqItemHtml(t) {
+    return `
+          <div class="eq-item" data-id="${t.id}">
+            <button class="todo-checkbox" onclick="toggleTodo(${t.id})"></button>
+            <span class="eq-text">${escapeHtml(t.text)}</span>
+            <button class="todo-edit-btn" onclick="event.stopPropagation();openTodoEdit(${t.id})" title="편집">✏</button>
+            <button class="todo-delete" onclick="deleteTodo(${t.id})">×</button>
+          </div>`;
   }
 
   function renderTodoTab() {
@@ -3677,7 +3847,7 @@
 
     // 아이젠하워 4분면 (미완료만)
     ['do', 'schedule', 'delegate', 'eliminate'].forEach(q => {
-      const qTodos = todos.filter(t => t.quadrant === q && !t.isToday && !t.done);
+      const qTodos = todos.filter(t => t.quadrant === q && !t.isToday && !t.done && !projOf(t));
       const list = document.getElementById('eqList-' + q);
       const countEl = document.getElementById('eqCount-' + q);
       if (countEl) countEl.textContent = qTodos.length > 0 ? qTodos.length : '';
@@ -3685,13 +3855,7 @@
       if (qTodos.length === 0) {
         list.innerHTML = '';
       } else {
-        list.innerHTML = qTodos.map(t => `
-          <div class="eq-item" data-id="${t.id}">
-            <button class="todo-checkbox" onclick="toggleTodo(${t.id})"></button>
-            <span class="eq-text">${escapeHtml(t.text)}</span>
-            <button class="todo-edit-btn" onclick="event.stopPropagation();openTodoEdit(${t.id})" title="편집">✏</button>
-            <button class="todo-delete" onclick="deleteTodo(${t.id})">×</button>
-          </div>`).join('');
+        list.innerHTML = qTodos.map(t => eqItemHtml(t)).join('');
       }
     });
 
@@ -3715,6 +3879,7 @@
       }
     }
 
+    renderProjectSections();
     attachEisenhowerDragHandlers();
   }
 
@@ -3736,7 +3901,8 @@
       { el: document.getElementById('eqList-eliminate'), target: 'eliminate' },
     ];
     document.querySelectorAll('#tab-todos .eq-cell').forEach(cell => {
-      dropZones.push({ el: cell, target: cell.dataset.q });
+      const sec = cell.closest('.todo-proj-section');
+      dropZones.push({ el: cell, target: cell.dataset.q, proj: sec ? (sec.dataset.proj || '') : '' });
     });
     // 드롭 영역을 전역에 저장
     window._eqDropZones = dropZones;
@@ -3783,6 +3949,7 @@
       highlight.style.outline = '2px dashed rgba(91,134,229,0.5)';
       highlight.style.outlineOffset = '-2px';
       eqDragState.dropTarget = foundZone.target;
+      eqDragState.dropProj = foundZone.proj || '';
     } else {
       eqDragState.dropTarget = null;
     }
@@ -3792,7 +3959,7 @@
     document.removeEventListener('pointermove', onEqDragMove);
     document.removeEventListener('pointerup', onEqDragEnd);
     if (!eqDragState) return;
-    const { id, dropTarget, moved } = eqDragState;
+    const { id, dropTarget, dropProj, moved } = eqDragState;
     eqDragState = null;
 
     // 하이라이트 제거
@@ -3810,6 +3977,7 @@
     } else {
       t.isToday = false;
       t.quadrant = dropTarget;
+      t.project = dropProj || '';
     }
     saveTodos();
     renderTodos();
@@ -3842,7 +4010,8 @@
             done: !!t.done,
             goalId: t.goalId || null,
             dueDate: t.dueDate || null,
-            completedAt: t.completedAt || null
+            completedAt: t.completedAt || null,
+            project: t.project || ''
           }))
         })
       });
