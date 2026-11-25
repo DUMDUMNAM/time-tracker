@@ -1755,8 +1755,12 @@
             <input type="text" class="settings-input" id="settingSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/...">
           </div>
           <div class="settings-field">
-            <label class="settings-field-label">Apps Script 웹앱 URL</label>
+            <label class="settings-field-label">시트 주소 (Apps Script 웹앱 URL)</label>
             <input type="text" class="settings-input" id="settingScriptUrl" placeholder="https://script.google.com/macros/s/.../exec">
+          </div>
+          <div class="settings-field">
+            <label class="settings-field-label">비밀번호</label>
+            <input type="password" class="settings-input" id="settingSheetToken" autocomplete="off" placeholder="시트 비밀번호">
           </div>
           <button class="settings-save-btn" onclick="saveSheetSettings()">저장</button>
           <div class="settings-sync-row">
@@ -1979,10 +1983,44 @@
 
   // --- 설정 ---
   let SHEET_URL = localStorage.getItem('settingSheetUrl') || 'https://docs.google.com/spreadsheets/d/16Dcrr1Lvs5fPeW778lI_pvqZaGLyIbKN0byfwLWgv5Q/edit?usp=sharing';
-  let APPS_SCRIPT_URL = localStorage.getItem('settingScriptUrl') || 'https://script.google.com/macros/s/AKfycbzE23Ra7tNzOnILkkLHUETemqZJtDnKrM75nzhymL48PCtkhO2-m42vMDrzi2y9kvJuxQ/exec';
+  // 시트 주소(Apps Script 웹앱 URL)와 비밀번호(토큰)는 설정에서만 넣는다 — 코드에 기본값을 두지 않는다
+  let APPS_SCRIPT_URL = (localStorage.getItem('settingScriptUrl') || '').trim();
+  let SHEET_TOKEN = (localStorage.getItem('settingSheetToken') || '').trim();
+  let sheetAuthFailed = false; // 'unauthorized' 응답을 받으면 설정이 바뀔 때까지 자동 동기화를 멈춘다
+  let sheetHintShown = false;
+  const SHEET_HINT_MSG = '시트 연결 안 됨 · 설정에서 주소와 비밀번호를 넣어 주세요';
+  const SHEET_AUTH_MSG = '비밀번호가 맞지 않아요';
+  function sheetReady() { return !!(APPS_SCRIPT_URL && SHEET_TOKEN); }
+  function sheetGetUrl(action) {
+    return APPS_SCRIPT_URL + '?action=' + encodeURIComponent(action) + '&token=' + encodeURIComponent(SHEET_TOKEN);
+  }
+  // 시트로 보내는 모든 POST: 본문 JSON에 token을 넣는다. 연결 정보가 없으면 아무것도 보내지 않는다(대기열은 그대로)
+  function sheetFetch(url, opts) {
+    if (!sheetReady()) return Promise.resolve(null);
+    const o = Object.assign({}, opts);
+    try {
+      const body = JSON.parse(o.body || '{}');
+      body.token = SHEET_TOKEN;
+      o.body = JSON.stringify(body);
+    } catch (_) { return Promise.resolve(null); }
+    return fetch(url, o);
+  }
+  function showSheetHint(msg) {
+    const text = msg || SHEET_HINT_MSG;
+    const a = document.getElementById('syncStatus');
+    if (a) { a.textContent = text; a.className = 'sync-status'; }
+    const b = document.getElementById('settingsSyncStatus');
+    if (b) { b.textContent = text; b.style.color = '#FFA726'; }
+  }
+  function showSheetHintOnce() {
+    if (sheetHintShown) return;
+    sheetHintShown = true;
+    showSheetHint();
+  }
 
   document.getElementById('settingSheetUrl').value = SHEET_URL;
   document.getElementById('settingScriptUrl').value = APPS_SCRIPT_URL;
+  document.getElementById('settingSheetToken').value = SHEET_TOKEN;
 
   // --- 글자 크기 ---
   const fontScaleSlider = document.getElementById('fontScaleSlider');
@@ -2008,16 +2046,23 @@
   function saveSheetSettings() {
     SHEET_URL = document.getElementById('settingSheetUrl').value.trim();
     APPS_SCRIPT_URL = document.getElementById('settingScriptUrl').value.trim();
+    SHEET_TOKEN = document.getElementById('settingSheetToken').value.trim();
     localStorage.setItem('settingSheetUrl', SHEET_URL);
     localStorage.setItem('settingScriptUrl', APPS_SCRIPT_URL);
+    localStorage.setItem('settingSheetToken', SHEET_TOKEN);
+    // 설정이 바뀌면 비밀번호 오류 멈춤을 풀고, 연결되면 바로 한 번 동기화(대기 중인 기록 전송)
+    sheetAuthFailed = false;
+    sheetHintShown = false;
+    if (sheetReady()) setTimeout(() => { loadFromSheet().catch(() => {}); }, 0);
     const status = document.getElementById('settingsSyncStatus');
     if (status) { status.textContent = '저장 완료'; status.style.color = '#4CAF50'; }
     setTimeout(() => { if (status) status.textContent = ''; }, 2000);
   }
 
   async function loadFromSheet() {
-    if (!APPS_SCRIPT_URL) {
-      alert('Apps Script 웹앱 URL을 먼저 설정해주세요.');
+    if (!sheetReady()) {
+      // 연결 정보 없음: 오류 없이 로컬로만 동작 (대기열은 그대로 둔다)
+      showSheetHint();
       return;
     }
     if (isSyncing) return;
@@ -2025,7 +2070,7 @@
     const status = document.getElementById('settingsSyncStatus');
     if (status) { status.textContent = '동기화 중...'; status.style.color = '#FFA726'; }
     try {
-      const res = await fetch(APPS_SCRIPT_URL + '?action=getAll');
+      const res = await fetch(sheetGetUrl('getAll'));
       const data = await res.json();
       if (data && data.records && Array.isArray(data.records)) {
         function toHHMM(val) {
@@ -2097,6 +2142,10 @@
             : `${sheetRecords.length}개 기록 동기화 완료`;
           status.style.color = pc > 0 ? '#FFA726' : '#4CAF50';
         }
+      } else if (data && data.error === 'unauthorized') {
+        // 비밀번호 거절: 재전송하지 않고(대기열 유지) 설정이 바뀔 때까지 자동 동기화를 멈춘다. 안내는 한 번만
+        if (!sheetAuthFailed) showSheetHint(SHEET_AUTH_MSG);
+        sheetAuthFailed = true;
       } else {
         // 1-A. 비정상 응답: 로컬 records는 절대 재할당하지 않는다 (pendingOps 재전송만 시도)
         if (pendingOps.length > 0) await retrySendPendingOps();
@@ -2456,7 +2505,7 @@
     for (const op of [...pendingOps]) {
       try {
         if (op.type === 'add') {
-          await fetch(APPS_SCRIPT_URL, {
+          await sheetFetch(APPS_SCRIPT_URL, {
             method: 'POST', mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
@@ -2468,7 +2517,7 @@
             })
           });
         } else if (op.type === 'delete') {
-          await fetch(APPS_SCRIPT_URL, {
+          await sheetFetch(APPS_SCRIPT_URL, {
             method: 'POST', mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
@@ -2477,7 +2526,7 @@
             })
           });
         } else if (op.type === 'edit') {
-          await fetch(APPS_SCRIPT_URL, {
+          await sheetFetch(APPS_SCRIPT_URL, {
             method: 'POST', mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
@@ -2485,7 +2534,7 @@
               date: op.oldData.date, startTime: op.oldData.startTime, name: op.oldData.name
             })
           });
-          await fetch(APPS_SCRIPT_URL, {
+          await sheetFetch(APPS_SCRIPT_URL, {
             method: 'POST', mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
@@ -2506,7 +2555,7 @@
   function startAutoSync() {
     if (autoSyncTimer) clearInterval(autoSyncTimer);
     autoSyncTimer = setInterval(() => {
-      if (!APPS_SCRIPT_URL || isSyncing) return;
+      if (!sheetReady() || sheetAuthFailed || isSyncing) return;
       if (Date.now() < autoSyncPausedUntil) return; // 가져오기 직후 일시정지
       loadFromSheet().catch(() => {});
     }, 60000);
@@ -2832,15 +2881,16 @@
   });
 
   async function sendToSheet(record) {
-    if (!APPS_SCRIPT_URL) return;
     const dateStr = record.date || getRecordDate(record);
+    // 연결 정보가 없어도 대기열에는 쌓아 둔다 → 나중에 연결되면 한꺼번에 전송
     addPendingOp({
       type: 'add', id: record.id,
       record: { ...record, date: dateStr }
     });
+    if (!sheetReady()) { showSheetHintOnce(); return; }
     showSyncStatus('시트에 기록 중...');
     try {
-      await fetch(APPS_SCRIPT_URL, {
+      await sheetFetch(APPS_SCRIPT_URL, {
         method: 'POST', mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
@@ -3268,14 +3318,14 @@
       records[idx].retro = retro;
       saveRecords();
 
-      if (APPS_SCRIPT_URL) {
+      { // 연결 정보가 없어도 대기열에는 쌓는다 (sheetFetch는 연결 전엔 보내지 않음)
         pendingOps = pendingOps.filter(o => !(String(o.id) === String(records[idx].id) && o.type === 'add'));
         addPendingOp({
           type: 'edit', id: records[idx].id,
           record: { ...records[idx], date: getRecordDate(records[idx]) },
           oldData: { id: oldId, date: oldDate, startTime: oldStartTime, name: oldName }
         });
-        fetch(APPS_SCRIPT_URL, {
+        sheetFetch(APPS_SCRIPT_URL, {
           method: 'POST', mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain' },
           body: JSON.stringify({
@@ -3283,7 +3333,7 @@
             date: oldDate, startTime: oldStartTime, name: oldName
           })
         }).then(() => {
-          return fetch(APPS_SCRIPT_URL, {
+          return sheetFetch(APPS_SCRIPT_URL, {
             method: 'POST', mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
@@ -3310,13 +3360,13 @@
     saveRecords();
     editingId = null;
     renderRecords();
-    if (rec && APPS_SCRIPT_URL) {
+    if (rec) { // 연결 정보가 없어도 대기열에는 쌓는다
       pendingOps = pendingOps.filter(o => !(String(o.id) === String(rec.id) && o.type === 'add'));
       addPendingOp({
         type: 'delete', id: rec.id,
         date: getRecordDate(rec), startTime: rec.startTime, name: rec.name
       });
-      fetch(APPS_SCRIPT_URL, {
+      sheetFetch(APPS_SCRIPT_URL, {
         method: 'POST', mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
@@ -3352,7 +3402,7 @@
   });
 
   async function syncMemoToSheet() {
-    if (!APPS_SCRIPT_URL) { memoSyncDot.className = 'memo-sync-dot'; return; }
+    if (!sheetReady()) { memoSyncDot.className = 'memo-sync-dot'; return; }
     try {
       const today = new Date();
       const dateStr = today.getFullYear() + '-' +
@@ -3361,7 +3411,7 @@
       const timeStr = String(today.getHours()).padStart(2, '0') + ':' +
         String(today.getMinutes()).padStart(2, '0');
 
-      await fetch(APPS_SCRIPT_URL, {
+      await sheetFetch(APPS_SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
@@ -3987,7 +4037,7 @@
   // Google Sheets 단방향 백업
   async function syncTodosToSheet() {
     const dot = document.getElementById('todoSyncDot');
-    if (!APPS_SCRIPT_URL) { if (dot) dot.className = 'todo-sync-dot'; return; }
+    if (!sheetReady()) { if (dot) dot.className = 'todo-sync-dot'; return; }
     try {
       const today = new Date();
       const dateStr = today.getFullYear() + '-' +
@@ -3995,7 +4045,7 @@
         String(today.getDate()).padStart(2, '0');
       const timeStr = String(today.getHours()).padStart(2, '0') + ':' +
         String(today.getMinutes()).padStart(2, '0');
-      await fetch(APPS_SCRIPT_URL, {
+      await sheetFetch(APPS_SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
@@ -4068,10 +4118,10 @@
   })();
 
   // 시트에서 자동 불러오기 + 1분 간격 자동 동기화
-  if (APPS_SCRIPT_URL) {
-    loadFromSheet().catch(() => {});
-    startAutoSync();
-  }
+  // (연결 정보가 없으면 로컬로만 동작하고 안내 한 줄만 — 자동 동기화 타이머는 매번 연결 여부를 확인한다)
+  if (sheetReady()) loadFromSheet().catch(() => {});
+  else showSheetHintOnce();
+  startAutoSync();
 /*@@GEN:END*/</script>
 
 </body>
