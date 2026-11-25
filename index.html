@@ -4136,7 +4136,7 @@
   async function refreshMacRunning() {
     if (!sheetReady() || sheetAuthFailed) { macRunning = null; renderMacRunning(); return; }
     try {
-      const res = await fetch(sheetGetUrl('getAll'));
+      const res = await fetch(sheetGetUrl('getRunning'));
       const data = await res.json();
       macRunning = data && data.running && typeof data.running === 'object' ? data.running : null;
     } catch (e) { /* 다음에 다시 */ }
