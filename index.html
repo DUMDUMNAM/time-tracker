@@ -262,6 +262,11 @@
     transition: all 0.15s;
   }
   .settings-sync-btn:hover { background: rgba(26,35,126,0.08); }
+  .mac-running {
+    margin: 0 0 10px; padding: 7px 10px; border-radius: 8px;
+    background: #E8EAF6; color: #1A237E; font-size: 13px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .settings-sync-status {
     font-size: 11px;
     color: #999;
@@ -1456,6 +1461,7 @@
         <button class="tab-btn tab-btn-sheet" onclick="openSheet()">시트</button>
       </div>
     </div>
+    <div class="mac-running" id="macRunning" style="display:none;"></div>
 
     <!-- 홈 탭 -->
     <div class="tab-content active" id="tab-main">
@@ -1819,13 +1825,7 @@
     document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
     document.getElementById('tab-' + tabName).classList.add('active');
     document.querySelectorAll('.tab-btn').forEach(el => {
-      if ((tabName === 'main' && el.textContent === '홈') ||
-          (tabName === 'todos' && el.textContent === '할 일') ||
-          (tabName === 'records' && el.textContent === '기록') ||
-          (tabName === 'stats' && el.textContent === '통계') ||
-          (tabName === 'settings' && el.textContent === '설정')) {
-        el.classList.add('active');
-      }
+      if (el.getAttribute('onclick') === "switchTab('" + tabName + "')") el.classList.add('active');
     });
     if (tabName === 'todos') renderTodoTab();
     if (tabName === 'stats') renderStats();
@@ -4122,6 +4122,29 @@
   if (sheetReady()) loadFromSheet().catch(() => {});
   else showSheetHintOnce();
   startAutoSync();
+  // --- 맥에서 진행 중(폰 맨 위 한 줄) — 시트의 running 을 본다. 옛 스크립트(running 없음)면 그냥 숨긴다 ---
+  const MAC_RUN_STALE_MS = 12 * 60 * 60 * 1000;
+  let macRunning = null;
+  function renderMacRunning(now = Date.now()) {
+    const el = document.getElementById('macRunning');
+    if (!el) return;
+    const r = macRunning;
+    const ok = !!(r && r.name && Number(r.startTime) > 0 && Number(r.updatedAt) > 0 && now - Number(r.updatedAt) < MAC_RUN_STALE_MS);
+    el.style.display = ok ? '' : 'none';
+    el.textContent = ok ? `맥에서 진행 중 · ${r.name} · ${Math.max(0, Math.floor((now - Number(r.startTime)) / 60000))}분째` : '';
+  }
+  async function refreshMacRunning() {
+    if (!sheetReady() || sheetAuthFailed) { macRunning = null; renderMacRunning(); return; }
+    try {
+      const res = await fetch(sheetGetUrl('getAll'));
+      const data = await res.json();
+      macRunning = data && data.running && typeof data.running === 'object' ? data.running : null;
+    } catch (e) { /* 다음에 다시 */ }
+    renderMacRunning();
+  }
+  refreshMacRunning();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshMacRunning(); });
+  setInterval(() => { if (document.visibilityState === 'visible') refreshMacRunning(); }, 60 * 1000);
 /*@@GEN:END*/</script>
 
 </body>
