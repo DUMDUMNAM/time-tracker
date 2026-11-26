@@ -2670,7 +2670,7 @@
   }
 
   function checkWorkGap() {
-    if (timerInterval || document.hidden || isAnyModalOpen()) return;
+    if (timerInterval || window.macRunBusy || document.hidden || isAnyModalOpen()) return;
     const gap = getCurrentGap();
     if (!gap || gap.key === ignoredGapKey) return;
     openGapPrompt(gap);
@@ -4125,11 +4125,17 @@
   // --- 맥에서 진행 중(폰 맨 위 한 줄) — 시트의 running 을 본다. 옛 스크립트(running 없음)면 그냥 숨긴다 ---
   const MAC_RUN_STALE_MS = 12 * 60 * 60 * 1000;
   let macRunning = null;
+  // 맥이 돌고 있으면 맥이 자기 공백을 묻는다 → 폰은 공백 질문을 안 띄운다(첫 확인 전에도 보류)
+  window.macRunBusy = sheetReady() && !sheetAuthFailed;
   function renderMacRunning(now = Date.now()) {
     const el = document.getElementById('macRunning');
     if (!el) return;
     const r = macRunning;
     const ok = !!(r && r.name && Number(r.startTime) > 0 && Number(r.updatedAt) > 0 && now - Number(r.updatedAt) < MAC_RUN_STALE_MS);
+    const was = window.macRunBusy;
+    window.macRunBusy = ok;
+    if (ok && document.getElementById('gapModal').style.display === 'flex') closeGapPrompt();
+    else if (was && !ok) setTimeout(checkWorkGap, 0);
     el.style.display = ok ? '' : 'none';
     el.textContent = ok ? `맥에서 진행 중 · ${r.name} · ${Math.max(0, Math.floor((now - Number(r.startTime)) / 60000))}분째` : '';
   }
